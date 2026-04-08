@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+celery
+redis
+ezdxf
+pandas
+openpyxl
+python-multipart
+aiofiles
+sqlalchemy
+passlib[bcrypt]
+python-jose[cryptography]
+python-dotenv
