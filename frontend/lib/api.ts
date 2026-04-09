@@ -24,16 +24,31 @@ export async function login(username: string, password: string) {
 export async function uploadFiles(files: File[]) {
   const fd = new FormData();
   files.forEach(f => fd.append("files", f));
-  const res = await fetch(`${BASE}/jobs/upload`, {
-    method: "POST",
-    headers: authHeaders(),
-    body: fd,
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? "Erro no upload");
+
+  // Timeout de 10 minutos para uploads grandes
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10 * 60 * 1000);
+
+  try {
+    const res = await fetch(`${BASE}/jobs/upload`, {
+      method: "POST",
+      headers: authHeaders(),
+      body: fd,
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail ?? "Erro no upload");
+    }
+    return res.json() as Promise<{ job_id: string; total_files: number }>;
+  } catch (err) {
+    if ((err as Error).name === "AbortError") {
+      throw new Error("Upload cancelado por timeout. Tente com menos arquivos por vez.");
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
   }
-  return res.json() as Promise<{ job_id: string; total_files: number }>;
 }
 
 export async function listJobs(): Promise<JobStatus[]> {

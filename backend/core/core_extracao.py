@@ -17,7 +17,7 @@ from openpyxl.worksheet.table import Table, TableStyleInfo
 # - extract_all_texts, fill_by_alias_tags, fill_by_key_value_text, etc.
 # - extrair_carimbo_de_um_dxf (mas vamos permitir x_tol/y_tol)
 
-from scriptTela import extrair_carimbo_de_um_dxf  # você vai mover seu código para cá
+from core.scriptTela import extrair_carimbo_de_um_dxf  # você vai mover seu código para cá
 
 def preparar_pasta_temp(pasta: Path):
     if pasta.exists():

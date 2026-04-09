@@ -12,6 +12,9 @@ from auth import hash_password, verify_password, create_token, get_current_user,
 from models import TokenResponse, UserCreate, UserOut, JobStatus
 from worker.tasks import processar_dwg
 
+from starlette.datastructures import UploadFile as StarletteUploadFile
+import starlette.formparsers as fp
+
 # Configurações
 UPLOAD_DIR  = Path(os.getenv("UPLOAD_DIR",  "storage/uploads"))
 RESULT_DIR  = Path(os.getenv("RESULT_DIR",  "storage/results"))
@@ -30,6 +33,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Aumenta o limite de upload para 500MB
+fp.MAX_FILE_SIZE = 500 * 1024 * 1024      # 500MB por arquivo
+fp.MAX_FIELDS    = 1000
+fp.MAX_FILES     = 200
 
 redis_client = redis.from_url(REDIS_URL, decode_responses=True)
 
@@ -152,23 +160,25 @@ def job_status(job_id: str, user=Depends(get_current_user)):
 
 
 @app.get("/jobs/{job_id}/download")
-def download(job_id: str, token: str = Query(default=None), user=Depends(get_current_user)):
-    data = redis_client.hgetall(f"job:{job_id}")
-    if not data:
+def download_results(job_id: str, token: str = Query(...), db: Session = Depends(get_db)):
+    # 1. Valida o usuário pelo token (importante para segurança)
+    user = get_current_user(token, db)
+    
+    # 2. Busca os dados do job no Redis
+    job_data = redis_client.hgetall(f"job:{job_id}")
+    if not job_data:
         raise HTTPException(status_code=404, detail="Job não encontrado")
-    if user.role != "admin" and data.get("user") != user.username:
-        raise HTTPException(status_code=403, detail="Acesso negado")
-    if data.get("status") != "done":
-        raise HTTPException(status_code=400, detail="Resultado ainda não disponível")
 
-    result_path = Path(data.get("result_path", ""))
-    if not result_path.exists():
-        raise HTTPException(status_code=404, detail="Arquivo de resultado não encontrado")
+    # 3. Verifica se o processamento terminou e se o caminho do arquivo existe
+    result_path = job_data.get("result_path")
+    if job_data.get("status") != "done" or not result_path:
+        raise HTTPException(status_code=400, detail="Arquivo ainda não disponível")
 
+    # 4. RETORNA O ARQUIVO REAL (O "Pulo do Gato")
     return FileResponse(
-        path=result_path,
+        path=result_path, 
         filename=f"Extracao_{job_id[:8]}.xlsx",
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 
 # ── LISTAR JOBS (admin vê todos, operador vê só os seus) ───────
