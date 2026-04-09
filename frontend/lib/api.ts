@@ -106,3 +106,16 @@ export async function deleteUser(id: string) {
     headers: authHeaders(),
   });
 }
+
+export async function register(data: UserCreate): Promise<UserOut> {
+  const res = await fetch(`${BASE}/auth/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Erro ao realizar cadastro");
+  }
+  return res.json();
+}

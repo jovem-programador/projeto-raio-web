@@ -84,6 +84,29 @@ def delete_user(user_id: str, db: Session = Depends(get_db), _=Depends(require_a
         raise HTTPException(status_code=404, detail="Usuário não encontrado")
     db.delete(user); db.commit()
 
+# ── Logica de criação de usuário ──
+@app.post("/auth/register", response_model=UserOut)
+def register_user(user_data: UserCreate, db: Session = Depends(get_db)):
+    # Verifica se o usuário ou email já existem
+    existing_user = db.query(User).filter(
+        (User.username == user_data.username) | (User.email == user_data.email)
+    ).first()
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Usuário ou Email já cadastrado")
+
+    # Cria o novo usuário inativo por padrão
+    new_user = User(
+        username=user_data.username,
+        email=user_data.email,
+        hashed_password=hash_password(user_data.password),
+        role="operador", # Força sempre operador no autocadastro
+        active=False     # AGUARDANDO APROVAÇÃO
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    return new_user
+
 # ── CRIAR ADMIN INICIAL (chamar uma vez) ──────────────────────
 @app.post("/setup/admin", include_in_schema=False)
 def setup_admin(db: Session = Depends(get_db)):
