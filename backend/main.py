@@ -5,13 +5,20 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 import redis
+from pydantic import BaseModel
+
 from database import get_db, User
 from auth import hash_password, verify_password, create_token, get_current_user, require_admin
 from models import TokenResponse, UserCreate, UserOut, JobStatus
 from worker.tasks import processar_dwg
 import urllib.parse
 
-# Configurações de Ambiente
+# --- SCHEMAS PARA VALIDAÇÃO ---
+class LoginSchema(BaseModel):
+    username: str
+    password: str
+
+# --- CONFIGURAÇÕES DE AMBIENTE ---
 UPLOAD_DIR  = Path(os.getenv("UPLOAD_DIR",  "storage/uploads"))
 RESULT_DIR  = Path(os.getenv("RESULT_DIR",  "storage/results"))
 REDIS_URL   = os.getenv("REDIS_URL", "redis://localhost:6379/0")
@@ -30,174 +37,161 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Conexão Redis (decode_responses=True para facilitar manipulação de strings)
+# Conexão Redis
 redis_client = redis.from_url(REDIS_URL, decode_responses=True)
 
-# ── AUTH ──────────────────────────────────────────────────────
+# --- ROTAS DE AUTENTICAÇÃO ---
+
 @app.post("/auth/register", response_model=UserOut)
-def register(user_data: UserCreate, db: Session = Depends(get_db)):
-    existing = db.query(User).filter(User.username == user_data.username).first()
-    if existing:
-        raise HTTPException(status_code=400, detail="Usuário já existe")
-    
+def register(data: UserCreate, db: Session = Depends(get_db)):
+    # Verifica se já existe usuário ou email
+    if db.query(User).filter(User.username == data.username).first():
+        raise HTTPException(status_code=400, detail="Nome de usuário já existe")
+    if db.query(User).filter(User.email == data.email).first():
+        raise HTTPException(status_code=400, detail="E-mail já cadastrado")
+
     new_user = User(
-        username=user_data.username,
-        email=user_data.email,
-        hashed_password=hash_password(user_data.password),
-        role="operador",
-        active=False # Requer aprovação do admin
+        username=data.username,
+        email=data.email,
+        hashed_password=hash_password(data.password),
+        role=data.role,
+        active=False  # Requer aprovação do admin
     )
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
     return new_user
 
-@app.post("/auth/login", response_model=TokenResponse)
-def login(db: Session = Depends(get_db), form_data = Depends()):
-    user = db.query(User).filter(User.username == form_data.username).first()
-    if not user or not verify_password(form_data.password, user.hashed_password):
+@app.post("/auth/login")
+def login(data: LoginSchema, db: Session = Depends(get_db)):
+    # Busca por username OU email
+    user = db.query(User).filter(
+        (User.username == data.username) | (User.email == data.username)
+    ).first()
+    
+    if not user or not verify_password(data.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Credenciais inválidas")
     
     if not user.active:
-        raise HTTPException(status_code=403, detail="Sua conta aguarda aprovação do administrador.")
-        
-    access_token = create_token({"sub": user.username, "role": user.role})
-    return {"access_token": access_token, "token_type": "bearer", "role": user.role, "username": user.username}
+        raise HTTPException(status_code=403, detail="Sua conta aguarda aprovação do administrador")
+    
+    token = create_token({"sub": user.username, "role": user.role})
+    return {
+        "access_token": token, 
+        "token_type": "bearer", 
+        "role": user.role, 
+        "username": user.username
+    }
 
-# ── JOBS / EXTRAÇÃO ───────────────────────────────────────────
+@app.post("/auth/reset-password")
+def reset_password(identifier: str, new_password: str, db: Session = Depends(get_db)):
+    # Localiza o usuário pelo username ou email
+    user = db.query(User).filter(
+        (User.username == identifier) | (User.email == identifier)
+    ).first()
+    
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuário não localizado")
+    
+    # Atualiza com HASH (essencial para o login funcionar depois)
+    user.hashed_password = hash_password(new_password)
+    db.commit()
+    
+    return {"detail": "Senha atualizada com sucesso"}
+
+@app.post("/setup/admin", include_in_schema=False)
+def setup_admin(db: Session = Depends(get_db)):
+    if db.query(User).filter(User.role == "admin").first():
+        raise HTTPException(status_code=409, detail="Admin já existe")
+    
+    user = User(
+        username="admin",
+        email="admin@projeta.com",
+        hashed_password=hash_password("TroqueEstaSenh@123"),
+        role="admin",
+        active=True,   # ← admin precisa estar ativo desde o início
+    )
+    db.add(user)
+    db.commit()
+    return {"msg": "Admin criado. Acesse com usuário 'admin' e altere a senha."}
+
+# --- ROTAS DE PROCESSAMENTO (DWG) ---
 
 @app.post("/jobs/upload")
-async def upload(files: list[UploadFile] = File(...), user=Depends(get_current_user)):
+async def upload_dwgs(
+    files: list[UploadFile] = File(...),
+    current_user: User = Depends(get_current_user)
+):
     job_id = str(uuid.uuid4())
-    job_dir = UPLOAD_DIR / job_id
-    job_dir.mkdir(parents=True, exist_ok=True)
+    total = len(files)
+    
+    # Pasta temporária para este job
+    job_path = UPLOAD_DIR / job_id
+    job_path.mkdir()
 
-    filenames = []
     for file in files:
-        file_path = job_dir / file.filename
+        file_path = job_path / file.filename
         with file_path.open("wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
-        filenames.append(file.filename)
 
-    # Guarda no Redis com a string de nomes separada por vírgula
+    # Regista o estado inicial no Redis
     redis_client.hset(f"job:{job_id}", mapping={
         "status": "queued",
-        "total_files": len(files),
+        "total_files": total,
         "processed": 0,
-        "user": user.username,
-        "filenames": ",".join(filenames) 
+        "download_ready": "false"
     })
 
-    processar_dwg.delay(job_id)
-    return {"job_id": job_id}
+    # Dispara tarefa para o Celery
+    processar_dwg.delay(job_id, str(job_path))
 
-@app.get("/jobs")
-def list_jobs(user=Depends(get_current_user)):
-    keys = redis_client.keys("job:*")
-    jobs = []
-    for key in keys:
-        data = redis_client.hgetall(key)
-        
-        # Segurança: Operador só vê os seus, Admin vê tudo
-        if user.role != "admin" and data.get("user") != user.username:
-            continue
-            
-        job_id = key.split(":")[1]
-        
-        # Recupera e trata a string de nomes de arquivos
-        raw_names = data.get("filenames", "")
-        filenames_list = raw_names.split(",") if raw_names else []
+    return {"job_id": job_id, "message": f"{total} arquivos recebidos"}
 
-        jobs.append({
-            "job_id": job_id,
-            "status": data.get("status"),
-            "total_files": int(data.get("total_files", 0)),
-            "processed": int(data.get("processed", 0)),
-            "user": data.get("user"),
-            "download_ready": data.get("status") == "done",
-            "filenames": filenames_list
-        })
-    
-    # Ordenar pelos IDs mais recentes
-    return sorted(jobs, key=lambda x: x["job_id"], reverse=True)
-
-@app.delete("/jobs/clear")
-def clear_jobs(current_user: User = Depends(get_current_user)):
-    try:
-        # 1. Localiza todas as chaves de jobs no Redis
-        keys = redis_client.keys("job:*")
-        deleted_count = 0
-        
-        for key in keys:
-            data = redis_client.hgetall(key)
-            if data.get("user") == current_user.username:
-                # Remove o registro do Redis
-                redis_client.delete(key)
-                deleted_count += 1
-        
-        # 2. LIMPEZA DA FILA (O "pulo do gato")
-        # Isso remove mensagens que estão na fila esperando para serem processadas
-        # 'celery' é o nome padrão da fila
-        redis_client.delete("celery") 
-        
-        return {"detail": f"Histórico limpo: {deleted_count} registros removidos e fila resetada."}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro ao limpar: {str(e)}")
-
-@app.get("/jobs/{job_id}/download")
-def download_result(job_id: str, user=Depends(get_current_user)):
+@app.get("/jobs/{job_id}/status", response_model=JobStatus)
+def get_status(job_id: str):
     data = redis_client.hgetall(f"job:{job_id}")
     if not data:
         raise HTTPException(status_code=404, detail="Job não encontrado")
     
-    # Validação de segurança
-    if user.role != "admin" and data.get("user") != user.username:
-        raise HTTPException(status_code=403, detail="Acesso negado")
-
-    result_path = RESULT_DIR / f"{job_id}.xlsx"
-    
-    if not result_path.exists():
-        # Se o arquivo não existir, o FastAPI retornará 404 em JSON. 
-        # Com a função de Blob acima, o 'catch' do frontend vai avisar o usuário.
-        raise HTTPException(status_code=404, detail="O arquivo Excel ainda não foi gerado.")
-
-    return FileResponse(
-        path=result_path,
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        filename="Extracao_Raio.xlsx"
+    return JobStatus(
+        job_id=job_id,
+        status=data["status"],
+        total_files=int(data["total_files"]),
+        processed=int(data["processed"]),
+        error_msg=data.get("error_msg"),
+        download_ready=(data["download_ready"] == "true")
     )
 
-# ── GERENCIAMENTO DE USUÁRIOS (ADMIN) ──────────────────────────
+@app.get("/jobs/{job_id}/download")
+def download_result(job_id: str):
+    result_file = RESULT_DIR / f"resultado_{job_id}.xlsx"
+    if not result_file.exists():
+        raise HTTPException(status_code=404, detail="Arquivo não disponível")
+    
+    return FileResponse(
+        path=result_file, 
+        filename=f"extracao_{job_id}.xlsx",
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
+# --- ROTAS DE ADMINISTRAÇÃO ---
 
 @app.get("/admin/users", response_model=list[UserOut])
 def list_users(db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
-    """
-    Retorna a lista de todos os usuários cadastrados.
-    Apenas acessível por administradores.
-    """
     return db.query(User).all()
 
-@app.patch("/admin/users/{user_id}/toggle")
-def toggle_user_status(user_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
-    """
-    Ativa ou desativa um usuário (Aprovação de conta).
-    """
+@app.post("/admin/users/{user_id}/toggle")
+def toggle_user(user_id: str, db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="Usuário não encontrado")
     
-    # Alterna o status active
     user.active = not user.active
     db.commit()
-    
-    status = "ativado" if user.active else "desativado"
-    return {"detail": f"Usuário {user.username} {status} com sucesso"}
+    return {"detail": f"Status de {user.username} alterado para {'ativo' if user.active else 'inativo'}"}
 
 @app.delete("/admin/users/{user_id}")
-def delete_user(user_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
-    """
-    Exclui permanentemente um usuário.
-    """
+def delete_user(user_id: str, db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="Usuário não encontrado")
@@ -205,3 +199,39 @@ def delete_user(user_id: int, db: Session = Depends(get_db), current_user: User 
     db.delete(user)
     db.commit()
     return {"detail": "Usuário removido com sucesso"}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+
+@app.delete("/jobs")
+def clear_jobs(current_user: User = Depends(get_current_user)):
+    try:
+        # 1. Busca todas as chaves de jobs no Redis
+        keys = redis_client.keys("job:*")
+        if keys:
+            redis_client.delete(*keys)
+        
+        # 2. Opcional: Limpar pastas físicas (CUIDADO: isso apaga os arquivos)
+        # shutil.rmtree(UPLOAD_DIR)
+        # UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+        
+        return {"detail": "Histórico removido com sucesso"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/jobs")
+def list_all_jobs(current_user: User = Depends(get_current_user)):
+    keys = redis_client.keys("job:*")
+    jobs = []
+    for key in keys:
+        job_data = redis_client.hgetall(key)
+        job_id = key.split(":")[1]
+        jobs.append({
+            "job_id": job_id,
+            "status": job_data.get("status"),
+            "total_files": int(job_data.get("total_files", 0)),
+            "processed": int(job_data.get("processed", 0)),
+            "download_ready": job_data.get("download_ready") == "true"
+        })
+    return jobs

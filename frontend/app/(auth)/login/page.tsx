@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { login, register } from "@/lib/api";
 import { saveSession } from "@/lib/auth";
+import Link from "next/link";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -150,14 +151,17 @@ export default function LoginPage() {
                   onChange={e => setForm({...form, password: e.target.value})}
                 />
               </div>
-
               {isLogin && (
                 <div className="text-sm text-right">
-                  <a href="#" className="text-red-700 font-medium hover:underline">Esqueceu sua senha?</a>
+                  <Link 
+                    href="/recuperar" 
+                    className="text-red-700 font-medium hover:underline transition-all"
+                  >
+                    Esqueceu sua senha?
+                  </Link>
                 </div>
               )}
             </div>
-
             <div className="mt-12">
               <button 
                 type="submit" 

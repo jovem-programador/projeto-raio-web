@@ -13,10 +13,16 @@ function authHeaders(): HeadersInit {
 export async function login(username: string, password: string) {
   const res = await fetch(`${BASE}/auth/login`, {
     method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ username, password }),
+    headers: { "Content-Type": "application/json" },  // ← era x-www-form-urlencoded
+    body: JSON.stringify({ username, password }),
   });
-  if (!res.ok) throw new Error("Credenciais inválidas");
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    // Repassa a mensagem exata do backend para o frontend mostrar
+    throw new Error(err.detail ?? "Credenciais inválidas");
+  }
+
   return res.json() as Promise<{ access_token: string; role: string; username: string }>;
 }
 
@@ -107,25 +113,33 @@ export async function deleteUser(id: string) {
   });
 }
 
-export async function register(data: UserCreate): Promise<UserOut> {
+export async function register(data: {
+  username: string;
+  email: string;
+  password: string;
+  role: string;
+}) {
   const res = await fetch(`${BASE}/auth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
+
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || "Erro ao realizar cadastro");
+    throw new Error(err.detail ?? "Erro ao criar conta");
   }
+
   return res.json();
 }
 
 // No seu arquivo api.ts
 
 export async function deleteHistory() {
-  const res = await fetch(`${BASE}/jobs/clear`, { 
+  // Removido o "/clear" se o backend usar o DELETE na raiz do recurso
+  const res = await fetch(`${BASE}/jobs`, { 
     method: "DELETE",
-    headers: authHeaders(), // Aqui usamos a função que você já tem no arquivo
+    headers: authHeaders(),
   });
   
   if (!res.ok) {
@@ -133,5 +147,15 @@ export async function deleteHistory() {
     throw new Error(err.detail || "Falha ao limpar histórico");
   }
   
+  return res.json();
+}
+
+export async function resetPassword(password: string) {
+  const res = await fetch(`${BASE}/auth/reset-password`, {
+    method: "POST",
+    headers: { ...authHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify({ new_password: password }),
+  });
+  if (!res.ok) throw new Error("Falha ao redefinir senha");
   return res.json();
 }
