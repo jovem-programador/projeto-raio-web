@@ -119,3 +119,19 @@ export async function register(data: UserCreate): Promise<UserOut> {
   }
   return res.json();
 }
+
+// No seu arquivo api.ts
+
+export async function deleteHistory() {
+  const res = await fetch(`${BASE}/jobs/clear`, { 
+    method: "DELETE",
+    headers: authHeaders(), // Aqui usamos a função que você já tem no arquivo
+  });
+  
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Falha ao limpar histórico");
+  }
+  
+  return res.json();
+}

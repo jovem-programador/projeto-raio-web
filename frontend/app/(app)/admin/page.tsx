@@ -1,152 +1,155 @@
 "use client";
-import { useState, useEffect } from "react";
-import { listUsers, createUser, toggleUser, deleteUser } from "@/lib/api";
-import type { UserOut, UserCreate, Role } from "@/lib/types";
+import React, { useState, useEffect } from "react";
+import { listUsers, toggleUser, deleteUser } from "@/lib/api";
+import { 
+  Users, Trash2, ShieldCheck, ShieldAlert, 
+  UserCheck, UserX, Mail, Fingerprint, Activity 
+} from "lucide-react";
 
-const ROLE_LABEL: Record<Role, string> = { admin: "Admin", operador: "Operador" };
+interface UserData {
+  id: string;
+  username: string;
+  email: string;
+  role: string;
+  active: boolean;
+}
 
-export default function AdminPage() {
-  const [users, setUsers]   = useState<UserOut[]>([]);
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm]     = useState<UserCreate>({ username: "", email: "", password: "", role: "operador" });
-  const [formError, setFormError] = useState("");
-  const [saving, setSaving] = useState(false);
+export default function AdminUsersPage() {
+  const [users, setUsers] = useState<UserData[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const load = () => listUsers().then(setUsers).catch(() => {});
-  useEffect(() => { load(); }, []);
-
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaving(true); setFormError("");
+  const fetchUsers = async () => {
     try {
-      await createUser(form);
-      setForm({ username: "", email: "", password: "", role: "operador" });
-      setShowForm(false);
-      load();
-    } catch (err: unknown) {
-      setFormError(err instanceof Error ? err.message : "Erro ao criar usuário");
+      const data = await listUsers();
+      setUsers(data);
+    } catch (err) {
+      console.error("Erro ao carregar usuários:", err);
     } finally {
-      setSaving(false);
+      setLoading(false);
     }
   };
 
+  useEffect(() => { fetchUsers(); }, []);
+
   const handleToggle = async (id: string) => {
     await toggleUser(id);
-    load();
+    fetchUsers();
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Remover este usuário?")) return;
-    await deleteUser(id);
-    load();
-  };
-
-  const inputStyle: React.CSSProperties = {
-    width: "100%", padding: "9px 12px",
-    border: "2px solid #D0D0D0", borderRadius: 8,
-    fontSize: 14, boxSizing: "border-box", marginBottom: 12,
+    if (confirm("Deseja realmente excluir este usuário?")) {
+      await deleteUser(id);
+      fetchUsers();
+    }
   };
 
   return (
-    <div style={{ maxWidth: 860, margin: "0 auto" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 24 }}>
-        <h2 style={{ margin: 0 }}>Gestão de usuários</h2>
-        <button
-          onClick={() => setShowForm(v => !v)}
-          style={{ marginLeft: "auto", background: "#AF1B1B", color: "#fff", border: "none", borderRadius: 8, padding: "8px 20px", fontWeight: 700, cursor: "pointer", fontSize: 14 }}
-        >
-          {showForm ? "Cancelar" : "+ Novo usuário"}
-        </button>
+    <div className="space-y-6">
+      {/* CABEÇALHO TÉCNICO */}
+      <div className="flex flex-col gap-2">
+        <h2 className="text-2xl font-extrabold text-gray-800 dark:text-white flex items-center gap-3">
+          <div className="p-2 bg-red-700 rounded-lg text-white shadow-lg shadow-red-900/20">
+            <Users size={24} />
+          </div>
+          Controle de Acessos
+        </h2>
+        <p className="text-sm text-gray-500 font-medium ml-12">
+          Gerencie permissões e aprove novos utilizadores do Projeto Raio.
+        </p>
       </div>
 
-      {/* Formulário */}
-      {showForm && (
-        <div style={{ background: "#fff", border: "1px solid #E8E8E8", borderRadius: 12, padding: 24, marginBottom: 24 }}>
-          <h3 style={{ margin: "0 0 16px", fontSize: 16 }}>Criar novo usuário</h3>
-          <form onSubmit={handleCreate}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 16px" }}>
-              <div>
-                <label style={{ fontSize: 12, color: "#555", display: "block", marginBottom: 4 }}>Usuário</label>
-                <input value={form.username} onChange={e => setForm(p => ({ ...p, username: e.target.value }))} style={inputStyle} required />
-              </div>
-              <div>
-                <label style={{ fontSize: 12, color: "#555", display: "block", marginBottom: 4 }}>E-mail</label>
-                <input type="email" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} style={inputStyle} required />
-              </div>
-              <div>
-                <label style={{ fontSize: 12, color: "#555", display: "block", marginBottom: 4 }}>Senha</label>
-                <input type="password" value={form.password} onChange={e => setForm(p => ({ ...p, password: e.target.value }))} style={inputStyle} required />
-              </div>
-              <div>
-                <label style={{ fontSize: 12, color: "#555", display: "block", marginBottom: 4 }}>Perfil</label>
-                <select value={form.role} onChange={e => setForm(p => ({ ...p, role: e.target.value as Role }))}
-                  style={{ ...inputStyle, background: "#fff" }}>
-                  <option value="operador">Operador</option>
-                  <option value="admin">Admin</option>
-                </select>
-              </div>
-            </div>
-            {formError && <p style={{ color: "#A32D2D", fontSize: 13, margin: "0 0 12px" }}>{formError}</p>}
-            <button type="submit" disabled={saving}
-              style={{ background: saving ? "#C9C9C9" : "#AF1B1B", color: "#fff", border: "none", borderRadius: 8, padding: "9px 24px", fontWeight: 700, cursor: saving ? "not-allowed" : "pointer", fontSize: 14 }}>
-              {saving ? "Salvando…" : "Criar usuário"}
-            </button>
-          </form>
-        </div>
-      )}
-
-      {/* Tabela */}
-      <div style={{ background: "#fff", border: "1px solid #E8E8E8", borderRadius: 12, overflow: "hidden" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
-          <thead>
-            <tr style={{ background: "#AF1B1B", color: "#fff" }}>
-              {["Usuário", "E-mail", "Perfil", "Status", "Ações"].map(h => (
-                <th key={h} style={{ padding: "12px 16px", textAlign: "left", fontWeight: 600 }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {users.map((u, i) => (
-              <tr key={u.id} style={{ background: i % 2 === 0 ? "#fff" : "#FAFAFA", borderTop: "1px solid #F0F0F0" }}>
-                <td style={{ padding: "12px 16px", fontWeight: 500 }}>{u.username}</td>
-                <td style={{ padding: "12px 16px", color: "#666" }}>{u.email}</td>
-                <td style={{ padding: "12px 16px" }}>
-                  <span style={{
-                    background: u.role === "admin" ? "#AF1B1B22" : "#00640022",
-                    color: u.role === "admin" ? "#AF1B1B" : "#006400",
-                    fontSize: 12, fontWeight: 700, padding: "2px 10px", borderRadius: 20,
-                  }}>
-                    {ROLE_LABEL[u.role]}
-                  </span>
-                </td>
-                <td style={{ padding: "12px 16px" }}>
-                  <span style={{
-                    background: u.active ? "#00640022" : "#88878022",
-                    color: u.active ? "#006400" : "#888",
-                    fontSize: 12, fontWeight: 700, padding: "2px 10px", borderRadius: 20,
-                  }}>
-                    {u.active ? "Ativo" : "Inativo"}
-                  </span>
-                </td>
-                <td style={{ padding: "12px 16px" }}>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <button onClick={() => handleToggle(u.id)}
-                      style={{ background: "none", border: "1px solid #D0D0D0", borderRadius: 6, padding: "4px 12px", cursor: "pointer", fontSize: 12 }}>
-                      {u.active ? "Desativar" : "Ativar"}
-                    </button>
-                    <button onClick={() => handleDelete(u.id)}
-                      style={{ background: "none", border: "1px solid #F09595", color: "#A32D2D", borderRadius: 6, padding: "4px 12px", cursor: "pointer", fontSize: 12 }}>
-                      Remover
-                    </button>
-                  </div>
-                </td>
+      {/* CARTÃO DA TABELA */}
+      <div className="rounded-3xl border border-gray-200 bg-white shadow-sm overflow-hidden dark:border-gray-800 dark:bg-white/[0.03]">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-transparent text-[11px] font-bold text-gray-400 uppercase tracking-widest">
+                <th className="px-8 py-5">Identificação</th>
+                <th className="px-6 py-5">Nível de Acesso</th>
+                <th className="px-6 py-5 text-center">Status da Conta</th>
+                <th className="px-8 py-5 text-right">Ações</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-        {users.length === 0 && (
-          <p style={{ textAlign: "center", color: "#999", padding: 32 }}>Nenhum usuário cadastrado.</p>
-        )}
+            </thead>
+            <tbody className="divide-y divide-gray-50 dark:divide-gray-800/50">
+              {users.map((user) => (
+                <tr key={user.id} className="group hover:bg-gray-50/50 dark:hover:bg-white/[0.01] transition-all">
+                  
+                  {/* COLUNA: USUÁRIO */}
+                  <td className="px-8 py-6">
+                    <div className="flex items-center gap-4">
+                      <div className="h-10 w-10 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700 flex items-center justify-center text-gray-500 font-bold border border-gray-200 dark:border-gray-600">
+                        {user.username.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-sm font-bold text-gray-800 dark:text-white/90">
+                          {user.username}
+                        </span>
+                        <div className="flex items-center gap-1 text-[11px] text-gray-400">
+                          <Mail size={10} /> {user.email}
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+
+                  {/* COLUNA: ROLE */}
+                  <td className="px-6 py-6">
+                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider shadow-sm ${
+                      user.role === 'admin' 
+                        ? 'bg-purple-100 text-purple-700 border border-purple-200' 
+                        : 'bg-blue-100 text-blue-700 border border-blue-200'
+                    }`}>
+                      {user.role === 'admin' ? <ShieldCheck size={12} /> : <ShieldAlert size={12} />}
+                      {user.role}
+                    </span>
+                  </td>
+
+                  {/* COLUNA: STATUS */}
+                  <td className="px-6 py-6 text-center">
+                    <div className="flex flex-col items-center gap-1">
+                      <span className={`h-2 w-2 rounded-full animate-pulse ${user.active ? 'bg-green-500' : 'bg-red-500'}`} />
+                      <span className={`text-[10px] font-bold uppercase ${user.active ? 'text-green-600' : 'text-red-600'}`}>
+                        {user.active ? 'Autorizado' : 'Bloqueado'}
+                      </span>
+                    </div>
+                  </td>
+
+                  {/* COLUNA: AÇÕES */}
+                  <td className="px-8 py-6 text-right">
+                    <div className="flex justify-end gap-3">
+                      <button
+                        onClick={() => handleToggle(user.id)}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all ${
+                          user.active 
+                            ? 'text-orange-600 bg-orange-50 hover:bg-orange-600 hover:text-white' 
+                            : 'text-green-600 bg-green-50 hover:bg-green-600 hover:text-white'
+                        }`}
+                        title={user.active ? "Revogar Acesso" : "Aprovar Acesso"}
+                      >
+                        {user.active ? <UserX size={16} /> : <UserCheck size={16} />}
+                        {user.active ? "SUSPENDER" : "APROVAR"}
+                      </button>
+
+                      <button
+                        onClick={() => handleDelete(user.id)}
+                        className="p-2.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                        title="Remover Usuário"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          
+          {users.length === 0 && !loading && (
+            <div className="flex flex-col items-center justify-center p-20 text-gray-400">
+              <Fingerprint size={48} className="mb-4 opacity-20" />
+              <p className="italic text-sm font-medium">Nenhum operador registrado no sistema.</p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

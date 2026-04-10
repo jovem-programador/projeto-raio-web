@@ -1,77 +1,61 @@
 "use client";
 import { useState, useEffect } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { clearSession } from "@/lib/auth";
+import AppSidebar from "@/layout/AppSidebar"; 
+import AppHeader from "@/layout/AppHeader";   
+import Backdrop from "@/layout/Backdrop";
+import { SidebarProvider, useSidebar } from "@/context/SidebarContext";
 
-export default function AppLayout({ children }: { children: React.ReactNode }) {
-  const router   = useRouter();
-  const pathname = usePathname();
+// Criamos um componente interno para aceder ao contexto da Sidebar
+function LayoutContent({ children }: { children: React.ReactNode }) {
+  const { isExpanded, isHovered, isMobileOpen } = useSidebar();
 
-  // Inicializa como null — igual ao que o servidor renderiza
-  // Só popula no cliente via useEffect, evitando divergência de hidratação
-  const [role, setRole]         = useState<string | null>(null);
-  const [username, setUsername] = useState<string | null>(null);
+  // Cálculo da margem dinâmica para o conteúdo principal
+  const mainContentMargin = isMobileOpen
+    ? "ml-0"
+    : isExpanded || isHovered
+    ? "lg:ml-[290px]"
+    : "lg:ml-[90px]";
+
+  const [role, setRole] = useState<string | null>(null);
 
   useEffect(() => {
     const roleMatch = document.cookie.match(/raio_role=([^;]+)/);
-    const userMatch = document.cookie.match(/raio_user=([^;]+)/);
     setRole(roleMatch?.[1] ?? null);
-    setUsername(userMatch?.[1] ?? null);
   }, []);
 
-  const logout = () => {
-    clearSession();
-    router.push("/login");
-  };
-
-  const navBtn = (label: string, href: string) => (
-    <button
-      onClick={() => router.push(href)}
-      style={{
-        background: "none", border: "none", color: "#fff",
-        cursor: "pointer", fontSize: 15,
-        fontWeight: pathname === href ? 700 : 400,
-        borderBottom: pathname === href ? "2px solid #fff" : "2px solid transparent",
-        paddingBottom: 2,
-      }}
-    >
-      {label}
-    </button>
-  );
-
   return (
-    <div style={{ minHeight: "100vh" }}>
-      <nav style={{
-        background: "#AF1B1B", color: "#fff",
-        padding: "0 28px", display: "flex",
-        alignItems: "center", height: 56, gap: 24,
-      }}>
-        <span style={{ fontWeight: 700, fontSize: 18, marginRight: 8 }}>⚡ Projeto Raio</span>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <div className="flex h-screen overflow-hidden">
+        
+        {/* Sidebar com acesso ao role para o menu de admin */}
+        <AppSidebar role={role} />
+        
+        {/* Camada de fundo para fechar o menu no telemóvel */}
+        <Backdrop />
 
-        {navBtn("Dashboard", "/dashboard")}
+        {/* Área de Conteúdo Principal com transição suave de margem */}
+        <div className={`relative flex flex-1 flex-col overflow-y-auto overflow-x-hidden transition-all duration-300 ease-in-out ${mainContentMargin}`}>
+          
+          <AppHeader />
 
-        {/* Só renderiza o botão Admin após hidratação — evita mismatch */}
-        {role === "admin" && navBtn("Usuários", "/admin")}
-
-        <span style={{ marginLeft: "auto", fontSize: 13, opacity: 0.85 }}>
-          {/* Renderiza vazio no servidor, popula no cliente */}
-          {username ? `${username} (${role})` : ""}
-        </span>
-
-        <button
-          onClick={logout}
-          style={{
-            background: "rgba(255,255,255,0.15)", border: "none",
-            color: "#fff", padding: "6px 16px",
-            borderRadius: 6, cursor: "pointer", fontSize: 13,
-          }}
-        >
-          Sair
-        </button>
-      </nav>
-      <main style={{ padding: 32 }}>
-        {children}
-      </main>
+          <main>
+            <div className="mx-auto max-w-screen-2xl p-4 md:p-6 2xl:p-10">
+              {children}
+            </div>
+          </main>
+        </div>
+      </div>
     </div>
+  );
+}
+
+// O componente principal apenas envolve tudo com o Provider
+export default function AppLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <SidebarProvider>
+      <LayoutContent>{children}</LayoutContent>
+    </SidebarProvider>
   );
 }

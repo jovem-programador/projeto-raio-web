@@ -11,6 +11,7 @@ export interface JobStatus {
   status: "queued" | "processing" | "done" | "error";
   total_files: number;
   processed: number;
+  filenames?: string[];
   error_msg?: string;
   download_ready: boolean;
   user?: string;
