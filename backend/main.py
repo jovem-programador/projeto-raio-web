@@ -10,6 +10,7 @@ from auth import hash_password, verify_password, create_token, get_current_user,
 from models import TokenResponse, UserCreate, UserOut, JobStatus
 from worker.tasks import processar_dwg
 import urllib.parse
+from fastapi.security import OAuth2PasswordRequestForm
 
 # Configurações de Ambiente
 UPLOAD_DIR  = Path(os.getenv("UPLOAD_DIR",  "storage/uploads"))
@@ -36,9 +37,13 @@ redis_client = redis.from_url(REDIS_URL, decode_responses=True)
 # ── AUTH ──────────────────────────────────────────────────────
 @app.post("/auth/register", response_model=UserOut)
 def register(user_data: UserCreate, db: Session = Depends(get_db)):
-    existing = db.query(User).filter(User.username == user_data.username).first()
-    if existing:
+    existing_username = db.query(User).filter(User.username == user_data.username).first()
+    if existing_username:
         raise HTTPException(status_code=400, detail="Usuário já existe")
+
+    existing_email = db.query(User).filter(User.email == user_data.email).first()
+    if existing_email:
+        raise HTTPException(status_code=400, detail="E-mail já cadastrado")
     
     new_user = User(
         username=user_data.username,
@@ -53,16 +58,24 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
     return new_user
 
 @app.post("/auth/login", response_model=TokenResponse)
-def login(db: Session = Depends(get_db), form_data = Depends()):
+def login(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db)
+):
     user = db.query(User).filter(User.username == form_data.username).first()
     if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Credenciais inválidas")
-    
+
     if not user.active:
         raise HTTPException(status_code=403, detail="Sua conta aguarda aprovação do administrador.")
-        
+
     access_token = create_token({"sub": user.username, "role": user.role})
-    return {"access_token": access_token, "token_type": "bearer", "role": user.role, "username": user.username}
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "role": user.role,
+        "username": user.username,
+    }
 
 # ── JOBS / EXTRAÇÃO ───────────────────────────────────────────
 
@@ -95,18 +108,21 @@ async def upload(files: list[UploadFile] = File(...), user=Depends(get_current_u
 def list_jobs(user=Depends(get_current_user)):
     keys = redis_client.keys("job:*")
     jobs = []
+
     for key in keys:
         data = redis_client.hgetall(key)
-        
-        # Segurança: Operador só vê os seus, Admin vê tudo
+        if not data:
+            continue
+
         if user.role != "admin" and data.get("user") != user.username:
             continue
-            
+
         job_id = key.split(":")[1]
-        
-        # Recupera e trata a string de nomes de arquivos
         raw_names = data.get("filenames", "")
         filenames_list = raw_names.split(",") if raw_names else []
+
+        if not data.get("status"):
+            continue
 
         jobs.append({
             "job_id": job_id,
@@ -117,30 +133,22 @@ def list_jobs(user=Depends(get_current_user)):
             "download_ready": data.get("status") == "done",
             "filenames": filenames_list
         })
-    
-    # Ordenar pelos IDs mais recentes
+
     return sorted(jobs, key=lambda x: x["job_id"], reverse=True)
 
 @app.delete("/jobs/clear")
 def clear_jobs(current_user: User = Depends(get_current_user)):
     try:
-        # 1. Localiza todas as chaves de jobs no Redis
         keys = redis_client.keys("job:*")
         deleted_count = 0
-        
+
         for key in keys:
             data = redis_client.hgetall(key)
             if data.get("user") == current_user.username:
-                # Remove o registro do Redis
                 redis_client.delete(key)
                 deleted_count += 1
-        
-        # 2. LIMPEZA DA FILA (O "pulo do gato")
-        # Isso remove mensagens que estão na fila esperando para serem processadas
-        # 'celery' é o nome padrão da fila
-        redis_client.delete("celery") 
-        
-        return {"detail": f"Histórico limpo: {deleted_count} registros removidos e fila resetada."}
+
+        return {"detail": f"Histórico limpo: {deleted_count} registros removidos."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao limpar: {str(e)}")
 
@@ -178,7 +186,7 @@ def list_users(db: Session = Depends(get_db), current_user: User = Depends(requi
     return db.query(User).all()
 
 @app.patch("/admin/users/{user_id}/toggle")
-def toggle_user_status(user_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
+def toggle_user_status(user_id: str, db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
     """
     Ativa ou desativa um usuário (Aprovação de conta).
     """
@@ -194,7 +202,7 @@ def toggle_user_status(user_id: int, db: Session = Depends(get_db), current_user
     return {"detail": f"Usuário {user.username} {status} com sucesso"}
 
 @app.delete("/admin/users/{user_id}")
-def delete_user(user_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
+def delete_user(user_id: str, db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
     """
     Exclui permanentemente um usuário.
     """

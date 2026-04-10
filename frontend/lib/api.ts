@@ -16,7 +16,12 @@ export async function login(username: string, password: string) {
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ username, password }),
   });
-  if (!res.ok) throw new Error("Credenciais inválidas");
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail ?? "Falha no login");
+  }
+
   return res.json() as Promise<{ access_token: string; role: string; username: string }>;
 }
 
