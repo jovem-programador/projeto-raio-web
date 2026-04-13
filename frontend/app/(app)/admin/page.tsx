@@ -118,7 +118,7 @@ export default function AdminUsersPage() {
                     <div className="flex justify-end gap-3">
                       <button
                         onClick={() => handleToggle(user.id)}
-                        className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all ${
+                        className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                           user.active 
                             ? 'text-orange-600 bg-orange-50 hover:bg-orange-600 hover:text-white' 
                             : 'text-green-600 bg-green-50 hover:bg-green-600 hover:text-white'
@@ -131,7 +131,7 @@ export default function AdminUsersPage() {
 
                       <button
                         onClick={() => handleDelete(user.id)}
-                        className="p-2.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                        className="p-2.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all cursor-pointer"
                         title="Remover Usuário"
                       >
                         <Trash2 size={18} />

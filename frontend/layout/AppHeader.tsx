@@ -39,7 +39,7 @@ export default function AppHeader() {
           
           <button
             onClick={handleLogout}
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-red-50 hover:text-red-600 transition-all dark:border-gray-700"
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-red-50 hover:text-red-600 transition-all dark:border-gray-700 cursor-pointer"
             title="Sair do sistema"
           >
             <LogOut className="h-5 w-5" />
