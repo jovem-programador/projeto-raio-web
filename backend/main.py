@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 import redis
 from database import get_db, User
 from auth import hash_password, verify_password, create_token, get_current_user, require_admin
-from models import TokenResponse, UserCreate, UserOut, JobStatus
+from models import TokenResponse, UserCreate, UserOut, JobStatus, ResetPasswordRequest
 from worker.tasks import processar_dwg
 import urllib.parse
 from fastapi.security import OAuth2PasswordRequestForm
@@ -213,3 +213,17 @@ def delete_user(user_id: str, db: Session = Depends(get_db), current_user: User 
     db.delete(user)
     db.commit()
     return {"detail": "Usuário removido com sucesso"}
+
+@app.post("/auth/reset-password")
+def reset_password(data: ResetPasswordRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(
+        (User.username == data.identifier) | (User.email == data.identifier)
+    ).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado")
+
+    user.hashed_password = hash_password(data.password)
+    db.commit()
+
+    return {"detail": "Senha atualizada com sucesso"}

@@ -126,7 +126,6 @@ export async function register(data: UserCreate): Promise<UserOut> {
 }
 
 // No seu arquivo api.ts
-
 export async function deleteHistory() {
   const res = await fetch(`${BASE}/jobs/clear`, { 
     method: "DELETE",
@@ -138,5 +137,20 @@ export async function deleteHistory() {
     throw new Error(err.detail || "Falha ao limpar histórico");
   }
   
+  return res.json();
+}
+
+export async function resetPassword(identifier: string, password: string) {
+  const res = await fetch(`${BASE}/auth/reset-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ identifier, password }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail ?? "Erro ao redefinir senha");
+  }
+
   return res.json();
 }

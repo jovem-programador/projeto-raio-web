@@ -153,7 +153,9 @@ export default function LoginPage() {
 
               {isLogin && (
                 <div className="text-sm text-right">
-                  <a href="#" className="text-red-700 font-medium hover:underline">Esqueceu sua senha?</a>
+                  <button type="button" onClick={() => router.push("/recuperar-senha")} className="text-red-700 font-medium hover:underline-none cursor-pointer">
+                    Esqueceu sua senha?
+                  </button>
                 </div>
               )}
             </div>

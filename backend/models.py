@@ -34,3 +34,7 @@ class JobStatus(BaseModel):
     processed: int = 0
     error_msg: Optional[str] = None
     download_ready: bool = False
+
+class ResetPasswordRequest(BaseModel):
+    identifier: str
+    password: str
