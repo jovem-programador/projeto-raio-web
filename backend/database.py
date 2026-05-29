@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, String, Boolean, DateTime
+from sqlalchemy import create_engine, Column, String, Boolean, DateTime, Integer
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 from datetime import datetime
 import uuid
@@ -18,6 +18,28 @@ class User(Base):
     role     = Column(String, default="operador")   # "admin" ou "operador"
     active   = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+class License(Base):
+    __tablename__ = "licenses"
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String, index=True, nullable=False)
+    plan = Column(String, nullable=False)      # mensal, trimestral ou anual
+    status = Column(String, default="active")  # active, suspended ou canceled
+    seats = Column(Integer, default=1)
+    notes = Column(String, default="")
+    starts_at = Column(DateTime, nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+class LicenseRequest(Base):
+    __tablename__ = "license_requests"
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String, index=True, nullable=False)
+    status = Column(String, default="open")  # open ou resolved
+    reason = Column(String, default="")
+    created_at = Column(DateTime, default=datetime.utcnow)
+    resolved_at = Column(DateTime, nullable=True)
 
 Base.metadata.create_all(bind=engine)
 

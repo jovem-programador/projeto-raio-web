@@ -1,4 +1,4 @@
-import type { JobStatus, UserCreate, UserOut } from "./types";
+import type { JobStatus, LicenseCheck, LicenseCreate, LicenseOut, LicenseRequestOut, LicenseUpdate, UserCreate, UserOut } from "./types";
 
 const BASE = "/api/backend";
 
@@ -62,6 +62,26 @@ export async function listJobs(): Promise<JobStatus[]> {
   return res.json();
 }
 
+export async function getMyLicense(): Promise<LicenseCheck> {
+  const res = await fetch(`${BASE}/license/me`, { headers: authHeaders() });
+  if (!res.ok) throw new Error("Falha ao verificar licença");
+  return res.json();
+}
+
+export async function requestLicenseAdminContact() {
+  const res = await fetch(`${BASE}/license/request-admin`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail ?? "Erro ao enviar solicitação");
+  }
+
+  return res.json() as Promise<{ detail: string }>;
+}
+
 export async function getJobStatus(jobId: string): Promise<JobStatus> {
   const res = await fetch(`${BASE}/jobs/${jobId}/status`, { headers: authHeaders() });
   if (!res.ok) throw new Error("Job não encontrado");
@@ -105,11 +125,109 @@ export async function toggleUser(id: string) {
   return res.json();
 }
 
+export async function promoteUser(id: string) {
+  const res = await fetch(`${BASE}/admin/users/${id}/promote`, {
+    method: "PATCH",
+    headers: authHeaders(),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail ?? "Erro ao promover usuário");
+  }
+
+  return res.json();
+}
+
 export async function deleteUser(id: string) {
   await fetch(`${BASE}/admin/users/${id}`, {
     method: "DELETE",
     headers: authHeaders(),
   });
+}
+
+export async function listLicenses(): Promise<LicenseOut[]> {
+  const res = await fetch(`${BASE}/admin/licenses`, { headers: authHeaders() });
+  if (!res.ok) throw new Error("Falha ao buscar licenças");
+  return res.json();
+}
+
+export async function listLicenseRequests(): Promise<LicenseRequestOut[]> {
+  const res = await fetch(`${BASE}/admin/license-requests`, { headers: authHeaders() });
+  if (!res.ok) throw new Error("Falha ao buscar solicitações de licença");
+  return res.json();
+}
+
+export async function resolveLicenseRequest(id: string) {
+  const res = await fetch(`${BASE}/admin/license-requests/${id}/resolve`, {
+    method: "PATCH",
+    headers: authHeaders(),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail ?? "Erro ao resolver solicitação");
+  }
+
+  return res.json();
+}
+
+export async function createLicense(data: LicenseCreate): Promise<LicenseOut> {
+  const res = await fetch(`${BASE}/admin/licenses`, {
+    method: "POST",
+    headers: { ...authHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail ?? "Erro ao criar licença");
+  }
+
+  return res.json();
+}
+
+export async function updateLicense(id: string, data: LicenseUpdate): Promise<LicenseOut> {
+  const res = await fetch(`${BASE}/admin/licenses/${id}`, {
+    method: "PATCH",
+    headers: { ...authHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail ?? "Erro ao atualizar licença");
+  }
+
+  return res.json();
+}
+
+export async function renewLicense(id: string): Promise<LicenseOut> {
+  const res = await fetch(`${BASE}/admin/licenses/${id}/renew`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail ?? "Erro ao renovar licença");
+  }
+
+  return res.json();
+}
+
+export async function deleteLicense(id: string) {
+  const res = await fetch(`${BASE}/admin/licenses/${id}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail ?? "Erro ao remover licença");
+  }
+
+  return res.json();
 }
 
 export async function register(data: UserCreate): Promise<UserOut> {

@@ -1,9 +1,9 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { listUsers, toggleUser, deleteUser } from "@/lib/api";
+import { listUsers, toggleUser, deleteUser, promoteUser } from "@/lib/api";
 import { 
   Users, Trash2, ShieldCheck, ShieldAlert, 
-  UserCheck, UserX, Mail, Fingerprint, Activity 
+  UserCheck, UserX, Mail, Fingerprint, Crown
 } from "lucide-react";
 
 interface UserData {
@@ -39,6 +39,13 @@ export default function AdminUsersPage() {
   const handleDelete = async (id: string) => {
     if (confirm("Deseja realmente excluir este usuário?")) {
       await deleteUser(id);
+      fetchUsers();
+    }
+  };
+
+  const handlePromote = async (id: string) => {
+    if (confirm("Deseja promover este usuário a administrador?")) {
+      await promoteUser(id);
       fetchUsers();
     }
   };
@@ -115,7 +122,22 @@ export default function AdminUsersPage() {
 
                   {/* COLUNA: AÇÕES */}
                   <td className="px-8 py-6 text-right">
-                    <div className="flex justify-end gap-3">
+                    <div className="flex justify-end gap-2 whitespace-nowrap">
+                      {user.role !== "admin" && (
+                        <button
+                          onClick={() => handlePromote(user.id)}
+                          className="flex min-w-[132px] items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-bold text-purple-700 bg-purple-50 hover:bg-purple-700 hover:text-white transition-all cursor-pointer"
+                          title="Promover a Administrador"
+                        >
+                          <Crown size={16} />
+                          PROMOVER ADM
+                        </button>
+                      )}
+
+                      {user.role === "admin" && (
+                        <span className="min-w-[132px]" aria-hidden="true" />
+                      )}
+
                       <button
                         onClick={() => handleToggle(user.id)}
                         className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${

@@ -1,13 +1,15 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
-import { uploadFiles, listJobs, downloadUrl, deleteHistory } from "@/lib/api"; 
+import { uploadFiles, listJobs, downloadUrl, deleteHistory, getMyLicense } from "@/lib/api"; 
 import type { JobStatus } from "@/lib/types";
+import { useRouter } from "next/navigation";
 import { 
   Zap, Hourglass, Layers3, CheckCircle, 
   AlertTriangle, CloudUpload, History, Trash2, FileText 
 } from "lucide-react";
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [jobs, setJobs] = useState<JobStatus[]>([]);
   const [uploading, setUploading] = useState(false);
   const [dragging, setDragging] = useState(false);
@@ -16,10 +18,16 @@ export default function DashboardPage() {
   const fetchJobs = () => listJobs().then(setJobs).catch(() => {});
 
   useEffect(() => {
+    getMyLicense()
+      .then((license) => {
+        if (!license.has_valid_license) router.replace("/licenca");
+      })
+      .catch(() => router.replace("/licenca"));
+
     fetchJobs();
     const id = setInterval(fetchJobs, 3000);
     return () => clearInterval(id);
-  }, []);
+  }, [router]);
 
   const handleClearHistory = async () => {
     if (confirm("Deseja realmente apagar todo o histórico de extrações?")) {

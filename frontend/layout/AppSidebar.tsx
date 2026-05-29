@@ -3,7 +3,7 @@ import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSidebar } from "@/context/SidebarContext";
-import { LayoutGrid, Users, Files, Zap, ChevronLeft } from "lucide-react";
+import { LayoutGrid, Users, Files, Zap, ChevronLeft, BadgeCheck } from "lucide-react";
 
 export default function AppSidebar({ role }: { role: string | null }) {
   const pathname = usePathname();
@@ -13,7 +13,10 @@ export default function AppSidebar({ role }: { role: string | null }) {
   const menuItems = [
     { name: "Extração", href: "/dashboard", icon: LayoutGrid },
     { name: "Renomear Arquivos", href: "/renomear", icon: Files },
-    ...(role === "admin" ? [{ name: "Usuários", href: "/admin", icon: Users }] : []),
+    ...(role === "admin" ? [
+      { name: "Licenças", href: "/licencas", icon: BadgeCheck },
+      { name: "Usuários", href: "/admin", icon: Users },
+    ] : []),
   ];
 
   // Lógica de largura dinâmica

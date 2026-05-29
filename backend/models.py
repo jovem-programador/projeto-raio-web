@@ -38,3 +38,55 @@ class JobStatus(BaseModel):
 class ResetPasswordRequest(BaseModel):
     identifier: str
     password: str
+
+class LicenseCreate(BaseModel):
+    user_id: str
+    plan: str
+    starts_at: Optional[datetime] = None
+    expires_at: Optional[datetime] = None
+    seats: int = 1
+    status: str = "active"
+    notes: str = ""
+
+class LicenseUpdate(BaseModel):
+    plan: Optional[str] = None
+    status: Optional[str] = None
+    starts_at: Optional[datetime] = None
+    expires_at: Optional[datetime] = None
+    seats: Optional[int] = None
+    notes: Optional[str] = None
+
+class LicenseOut(BaseModel):
+    id: str
+    user_id: str
+    username: str
+    email: str
+    plan: str
+    status: str
+    effective_status: str
+    seats: int
+    notes: str
+    starts_at: datetime
+    expires_at: datetime
+    created_at: datetime
+    updated_at: datetime
+    days_remaining: int
+
+class LicenseCheckOut(BaseModel):
+    has_valid_license: bool
+    is_admin: bool
+    status: str
+    plan: Optional[str] = None
+    expires_at: Optional[datetime] = None
+    days_remaining: int = 0
+    message: str
+
+class LicenseRequestOut(BaseModel):
+    id: str
+    user_id: str
+    username: str
+    email: str
+    status: str
+    reason: str
+    created_at: datetime
+    resolved_at: Optional[datetime] = None

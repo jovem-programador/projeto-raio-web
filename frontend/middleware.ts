@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { TOKEN_KEY, ROLE_KEY } from "./lib/auth";
 
 // Rotas que exigem autenticação
-const PROTECTED = ["/dashboard", "/admin", "/renomear"];
+const PROTECTED = ["/dashboard", "/admin", "/licenca", "/licencas", "/renomear"];
 // Rotas exclusivas de admin
-const ADMIN_ONLY = ["/admin"];
+const ADMIN_ONLY = ["/admin", "/licencas"];
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
