@@ -15,6 +15,9 @@ export interface JobStatus {
   error_msg?: string;
   download_ready: boolean;
   user?: string;
+  created_at?: string;
+  started_at?: string;
+  finished_at?: string;
 }
 
 export interface UserOut {

@@ -37,7 +37,6 @@ CAMPOS_ORDEM = [
     "ESCALA",
     "NÚMERO_DA_CONTRATADA",
     "NUMERO_VALE",
-    "REVISÃO",
     "1a_REV",
     "EMIS_1",
     "DESCRIÇÃO_DA_REVISÃO_1",
@@ -105,7 +104,6 @@ ALIASES = {
         "VALE", "NUMERO_VALE",
     ],
 
-    "REVISÃO": ["REVISÃO", "REVISAO", "REV", "REV.", "REV:"],
 }
 
 # OBS: estes aliases são usados apenas no modo "por texto".
@@ -355,7 +353,6 @@ def fill_by_key_value_text(items: list[dict], carimbo: dict):
         "ESCALA",
         "NÚMERO_DA_CONTRATADA",
         "NUMERO_VALE",
-        "REVISÃO",
     ]:
         if carimbo.get(campo):
             continue
@@ -540,7 +537,7 @@ def _score_carimbo(carimbo: dict) -> int:
         "SUBTÍTULO_1_DO_DESENHO",
         "SUBTÍTULO_2_DO_DESENHO",
         "NUMERO_VALE",
-        "REVISÃO",
+        "1a_REV",
     ]
     score = 0
     for c in campos_relevantes:
@@ -632,7 +629,7 @@ def _extrair_carimbo_de_items(items: list[dict], dxf_path: str, x_tol: float, y_
             )
 
     # validação mínima: se tem ao menos algo útil, devolve
-    if carimbo.get("PROJETO") or carimbo.get("NUMERO_VALE") or carimbo.get("REVISÃO") or carimbo.get("N_PROJ_SE"):
+    if carimbo.get("PROJETO") or carimbo.get("NUMERO_VALE") or carimbo.get("1a_REV") or carimbo.get("N_PROJ_SE"):
         return carimbo
     return None
 

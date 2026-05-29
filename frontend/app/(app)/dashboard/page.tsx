@@ -36,12 +36,28 @@ export default function DashboardPage() {
     if (!files || files.length === 0) return;
     setUploading(true);
     try {
-      const dwgs = Array.from(files).filter(f => f.name.toLowerCase().endsWith(".dwg"));
-      if (dwgs.length > 0) await uploadFiles(dwgs);
+      const suportados = Array.from(files).filter((f) => {
+        const name = f.name.toLowerCase();
+        return name.endsWith(".dwg") || name.endsWith(".pdf");
+      });
+      if (suportados.length > 0) await uploadFiles(suportados);
       fetchJobs();
     } finally {
       setUploading(false);
     }
+  };
+
+  const formatDateTime = (value?: string) => {
+    if (!value) return "Data não disponível";
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return "Data inválida";
+    return d.toLocaleString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   };
 
   // Cálculos para as métricas
@@ -90,10 +106,10 @@ export default function DashboardPage() {
                 dragging ? "border-brand-500 bg-brand-500/5" : "border-gray-300 hover:border-brand-500 dark:border-gray-700"
               }`}
             >
-              <input type="file" multiple accept=".dwg" ref={inputRef} hidden onChange={(e) => handleFiles(e.target.files)} />
+              <input type="file" multiple accept=".dwg,.pdf" ref={inputRef} hidden onChange={(e) => handleFiles(e.target.files)} />
               <Zap className={`h-10 w-10 mb-4 ${uploading ? "animate-pulse text-orange-500" : "text-brand-500"}`} />
               <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                {uploading ? "Enviando..." : "Arraste seus DWGs aqui"}
+                {uploading ? "Enviando..." : "Arraste seus DWGs/PDFs aqui"}
               </p>
             </div>
           </div>
@@ -144,6 +160,9 @@ export default function DashboardPage() {
                               </span>
                               <span className="text-[10px] text-gray-400 font-medium uppercase tracking-tight">
                                 ID: {job.job_id.slice(0, 8)}
+                              </span>
+                              <span className="text-[10px] text-gray-400 font-medium tracking-tight">
+                                Extração: {formatDateTime(job.finished_at || job.started_at || job.created_at)}
                               </span>
                             </div>
                           </div>

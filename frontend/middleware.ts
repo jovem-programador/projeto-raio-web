@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { TOKEN_KEY, ROLE_KEY } from "./lib/auth";
 
 // Rotas que exigem autenticação
-const PROTECTED = ["/dashboard", "/admin"];
+const PROTECTED = ["/dashboard", "/admin", "/renomear"];
 // Rotas exclusivas de admin
 const ADMIN_ONLY = ["/admin"];
 

@@ -3,7 +3,7 @@ import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSidebar } from "@/context/SidebarContext";
-import { LayoutGrid, Users, Settings, Zap, ChevronLeft } from "lucide-react";
+import { LayoutGrid, Users, Files, Zap, ChevronLeft } from "lucide-react";
 
 export default function AppSidebar({ role }: { role: string | null }) {
   const pathname = usePathname();
@@ -11,7 +11,8 @@ export default function AppSidebar({ role }: { role: string | null }) {
 
   // Menu simplificado: Histórico removido, tudo centralizado no Dashboard
   const menuItems = [
-    { name: "Dashboard", href: "/dashboard", icon: LayoutGrid },
+    { name: "Extração", href: "/dashboard", icon: LayoutGrid },
+    { name: "Renomear Arquivos", href: "/renomear", icon: Files },
     ...(role === "admin" ? [{ name: "Usuários", href: "/admin", icon: Users }] : []),
   ];
 

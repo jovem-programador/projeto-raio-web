@@ -2,6 +2,7 @@ from celery import Celery
 import os
 import redis
 import traceback
+from datetime import datetime, timezone
 from pathlib import Path
 
 # Configurações de ambiente (devem ser as mesmas do main.py)
@@ -21,16 +22,30 @@ def processar_dwg(self, job_id: str):
     from worker.processor import processar_job
 
     r = redis.from_url(REDIS_URL, decode_responses=True)
-    r.hset(f"job:{job_id}", "status", "processing")
+
+    # Se o usuário limpou o histórico antes do worker iniciar, não recria o job no Redis.
+    if r.get(f"job_deleted:{job_id}") == "1":
+        return f"Job {job_id} ignorado (removido pelo usuário)."
+
+    r.hset(
+        f"job:{job_id}",
+        mapping={
+            "status": "processing",
+            "started_at": datetime.now(timezone.utc).isoformat(),
+        },
+    )
 
     try:
         # Reconstroi os caminhos baseados no job_id
         job_upload_dir = UPLOAD_DIR / job_id
-        # Lista todos os ficheiros .dwg dentro da pasta do job
-        file_paths = [Path(f) for f in job_upload_dir.glob("*.dwg")]
+        # Lista os ficheiros suportados dentro da pasta do job
+        file_paths = [
+            p for p in job_upload_dir.iterdir()
+            if p.is_file() and p.suffix.lower() in {".dwg", ".pdf"}
+        ]
 
         if not file_paths:
-            raise Exception(f"Nenhum ficheiro .dwg encontrado na pasta {job_upload_dir}")
+            raise Exception(f"Nenhum ficheiro suportado (.dwg/.pdf) encontrado na pasta {job_upload_dir}")
 
         # Chama o processador
         result_path = processar_job(
@@ -41,18 +56,29 @@ def processar_dwg(self, job_id: str):
             redis_client=r,
         )
 
+        # Se foi removido durante o processamento, não regrava status final.
+        if r.get(f"job_deleted:{job_id}") == "1":
+            return f"Job {job_id} concluído, mas ocultado por limpeza de histórico."
+
         r.hset(f"job:{job_id}", mapping={
             "status": "done",
             "result_path": str(result_path),
+            "finished_at": datetime.now(timezone.utc).isoformat(),
         })
         
         return f"Job {job_id} concluído com sucesso."
 
     except Exception as e:
         error_details = traceback.format_exc()
+
+        # Se removido, não restaura item com status de erro.
+        if r.get(f"job_deleted:{job_id}") == "1":
+            return f"Job {job_id} falhou após remoção do histórico."
+
         r.hset(f"job:{job_id}", mapping={
             "status": "error",
-            "error_msg": str(e)
+            "error_msg": str(e),
+            "finished_at": datetime.now(timezone.utc).isoformat(),
         })
         print(f"Erro no Job {job_id}:\n{error_details}")
         return f"Erro no Job {job_id}"

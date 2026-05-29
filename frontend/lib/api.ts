@@ -154,3 +154,31 @@ export async function resetPassword(identifier: string, password: string) {
 
   return res.json();
 }
+
+export async function renameFilesInBulk(
+  files: File[],
+  baseName: string,
+  searchText?: string,
+  replaceText?: string,
+  cadernoTecnico?: boolean,
+): Promise<Blob> {
+  const fd = new FormData();
+  fd.append("base_name", baseName);
+  fd.append("search_text", searchText ?? "");
+  fd.append("replace_text", replaceText ?? "");
+  fd.append("caderno_tecnico", cadernoTecnico ? "true" : "false");
+  files.forEach((f) => fd.append("files", f));
+
+  const res = await fetch(`${BASE}/tools/rename-files`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: fd,
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail ?? "Erro ao renomear arquivos");
+  }
+
+  return res.blob();
+}
