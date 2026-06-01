@@ -51,7 +51,7 @@ def processar_job(job_id, file_paths, result_dir, oda_path, redis_client):
 
             # Converte via ODA
             cmd = [oda_path, str(dwg_dir), str(dxf_dir), "ACAD2018", "DXF", "0", "1"]
-            subprocess.run(cmd, check=True, shell=True, timeout=300)
+            subprocess.run(cmd, check=True, timeout=300)
 
             # Extrai carimbos de DWG convertido
             dados.extend(extrair_dados_completos_de_pasta_dxf(dxf_dir, x_tol=420, y_tol=6))

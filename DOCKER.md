@@ -34,17 +34,41 @@ http://localhost:3000
 
 ## ODA File Converter
 
-A extracao de arquivos `.dwg` depende do ODA File Converter.
-
-No Compose, o caminho esperado dentro do container e:
+A extracao de arquivos `.dwg` depende do ODA File Converter. No Docker, o sistema usa um wrapper interno:
 
 ```text
-/opt/oda/ODAFileConverter
+/usr/local/bin/oda-file-converter
 ```
 
-A pasta local `./oda` e montada como `/opt/oda` nos containers `backend` e `worker`.
+Esse wrapper executa o binario real com `xvfb-run`, necessario para rodar o ODA/Qt dentro de container sem tela.
 
-Exemplo de estrutura:
+### Linux com ODA instalado via `.deb`
+
+Depois de instalar o pacote ODA na VM, localize a pasta real:
+
+```bash
+sudo find / -type f -name "ODAFileConverter*" 2>/dev/null
+```
+
+Normalmente ela fica em:
+
+```text
+/usr/bin/ODAFileConverter_27.1.0.0
+```
+
+No `.env`, use:
+
+```env
+ODA_HOST_DIR=/usr/bin/ODAFileConverter_27.1.0.0
+ODA_PATH=/usr/local/bin/oda-file-converter
+ODA_REAL_PATH=/opt/oda/ODAFileConverter
+```
+
+O Compose monta `ODA_HOST_DIR` como `/opt/oda` dentro dos containers.
+
+### Pasta local `./oda`
+
+Tambem e possivel colocar uma instalacao compativel em:
 
 ```text
 projeto-raio-web/
@@ -52,10 +76,12 @@ projeto-raio-web/
     ODAFileConverter
 ```
 
-Se voce usa outro caminho, ajuste no `.env`:
+Nesse caso, mantenha:
 
 ```env
-ODA_PATH=/opt/oda/ODAFileConverter
+ODA_HOST_DIR=./oda
+ODA_PATH=/usr/local/bin/oda-file-converter
+ODA_REAL_PATH=/opt/oda/ODAFileConverter
 ```
 
 Observacao: se o conversor disponivel no seu computador for apenas `.exe` do Windows, ele nao roda dentro de um container Linux comum. Nesse caso, as opcoes sao:
@@ -65,6 +91,21 @@ Observacao: se o conversor disponivel no seu computador for apenas `.exe` do Win
 - ou usar Docker apenas para frontend, backend, Redis e Celery, mantendo a conversao DWG fora do container.
 
 PDFs continuam sem depender do ODA.
+
+## Portas
+
+Por padrao:
+
+```env
+FRONTEND_PORT=3000
+BACKEND_PORT=8000
+```
+
+Se a porta 3000 ja estiver ocupada, ajuste no `.env`:
+
+```env
+FRONTEND_PORT=3010
+```
 
 ## Comandos uteis
 

@@ -12,17 +12,21 @@ services:
     depends_on:
       - redis
     environment:
+      PYTHONPATH: /app/backend
       REDIS_URL: redis://redis:6379/0
       DATABASE_URL: sqlite:////data/raio.db
       UPLOAD_DIR: /data/storage/uploads
       RESULT_DIR: /data/storage/results
       SECRET_KEY: ${SECRET_KEY:-troque-esta-chave-em-producao}
-      ODA_PATH: ${ODA_PATH:-/opt/oda/ODAFileConverter}
+      ODA_PATH: ${ODA_PATH:-/usr/local/bin/oda-file-converter}
+      ODA_REAL_PATH: ${ODA_REAL_PATH:-/opt/oda/ODAFileConverter}
+      QT_QPA_PLATFORM: xcb
+      XDG_RUNTIME_DIR: /tmp/runtime-root
     ports:
-      - "8000:8000"
+      - "${BACKEND_PORT:-8000}:8000"
     volumes:
       - backend-data:/data
-      - ./oda:/opt/oda:ro
+      - ${ODA_HOST_DIR:-./oda}:/opt/oda:ro
 
   worker:
     build:
@@ -32,16 +36,20 @@ services:
       - redis
       - backend
     environment:
+      PYTHONPATH: /app/backend
       REDIS_URL: redis://redis:6379/0
       DATABASE_URL: sqlite:////data/raio.db
       UPLOAD_DIR: /data/storage/uploads
       RESULT_DIR: /data/storage/results
       SECRET_KEY: ${SECRET_KEY:-troque-esta-chave-em-producao}
-      ODA_PATH: ${ODA_PATH:-/opt/oda/ODAFileConverter}
+      ODA_PATH: ${ODA_PATH:-/usr/local/bin/oda-file-converter}
+      ODA_REAL_PATH: ${ODA_REAL_PATH:-/opt/oda/ODAFileConverter}
+      QT_QPA_PLATFORM: xcb
+      XDG_RUNTIME_DIR: /tmp/runtime-root
     command: celery -A worker.tasks.celery_app worker --loglevel=info --pool=solo
     volumes:
       - backend-data:/data
-      - ./oda:/opt/oda:ro
+      - ${ODA_HOST_DIR:-./oda}:/opt/oda:ro
 
   frontend:
     build:
@@ -54,7 +62,7 @@ services:
     environment:
       NEXT_PUBLIC_API_URL: http://backend:8000
     ports:
-      - "3000:3000"
+      - "${FRONTEND_PORT:-3000}:3000"
 
 volumes:
   backend-data:
