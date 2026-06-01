@@ -1,0 +1,10 @@
+.git
+**/__pycache__/
+**/*.pyc
+backend/.venv/
+backend/storage/
+backend/raio.db
+frontend/.next/
+frontend/node_modules/
+frontend/tsconfig.tsbuildinfo
+*.log

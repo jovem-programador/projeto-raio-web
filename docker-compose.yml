@@ -1,0 +1,61 @@
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+
+  backend:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    depends_on:
+      - redis
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: sqlite:////data/raio.db
+      UPLOAD_DIR: /data/storage/uploads
+      RESULT_DIR: /data/storage/results
+      SECRET_KEY: ${SECRET_KEY:-troque-esta-chave-em-producao}
+      ODA_PATH: ${ODA_PATH:-/opt/oda/ODAFileConverter}
+    ports:
+      - "8000:8000"
+    volumes:
+      - backend-data:/data
+      - ./oda:/opt/oda:ro
+
+  worker:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    depends_on:
+      - redis
+      - backend
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: sqlite:////data/raio.db
+      UPLOAD_DIR: /data/storage/uploads
+      RESULT_DIR: /data/storage/results
+      SECRET_KEY: ${SECRET_KEY:-troque-esta-chave-em-producao}
+      ODA_PATH: ${ODA_PATH:-/opt/oda/ODAFileConverter}
+    command: celery -A worker.tasks.celery_app worker --loglevel=info --pool=solo
+    volumes:
+      - backend-data:/data
+      - ./oda:/opt/oda:ro
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: http://backend:8000
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      NEXT_PUBLIC_API_URL: http://backend:8000
+    ports:
+      - "3000:3000"
+
+volumes:
+  backend-data:
+  redis-data:

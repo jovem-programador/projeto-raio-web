@@ -2,8 +2,11 @@ from sqlalchemy import create_engine, Column, String, Boolean, DateTime, Integer
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 from datetime import datetime
 import uuid
+import os
 
-engine = create_engine("sqlite:///./raio.db", connect_args={"check_same_thread": False})
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./raio.db")
+connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
+engine = create_engine(DATABASE_URL, connect_args=connect_args)
 SessionLocal = sessionmaker(bind=engine)
 
 class Base(DeclarativeBase):
