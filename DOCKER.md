@@ -60,11 +60,11 @@ No `.env`, use:
 
 ```env
 ODA_HOST_DIR=/usr/bin/ODAFileConverter_27.1.0.0
-ODA_PATH=/usr/local/bin/oda-file-converter
 ODA_REAL_PATH=/opt/oda/ODAFileConverter
 ```
 
 O Compose monta `ODA_HOST_DIR` como `/opt/oda` dentro dos containers.
+O `ODA_PATH` usado pela aplicacao e fixado internamente como `/usr/local/bin/oda-file-converter`, para garantir que o wrapper com `xvfb-run` seja sempre usado.
 
 ### Pasta local `./oda`
 
@@ -80,7 +80,6 @@ Nesse caso, mantenha:
 
 ```env
 ODA_HOST_DIR=./oda
-ODA_PATH=/usr/local/bin/oda-file-converter
 ODA_REAL_PATH=/opt/oda/ODAFileConverter
 ```
 
@@ -97,11 +96,11 @@ PDFs continuam sem depender do ODA.
 Por padrao:
 
 ```env
-FRONTEND_PORT=3000
+FRONTEND_PORT=3010
 BACKEND_PORT=8000
 ```
 
-Se a porta 3000 ja estiver ocupada, ajuste no `.env`:
+Se a porta 3010 ja estiver ocupada, ajuste no `.env`:
 
 ```env
 FRONTEND_PORT=3010

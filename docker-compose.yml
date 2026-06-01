@@ -18,7 +18,7 @@ services:
       UPLOAD_DIR: /data/storage/uploads
       RESULT_DIR: /data/storage/results
       SECRET_KEY: ${SECRET_KEY:-troque-esta-chave-em-producao}
-      ODA_PATH: ${ODA_PATH:-/usr/local/bin/oda-file-converter}
+      ODA_PATH: /usr/local/bin/oda-file-converter
       ODA_REAL_PATH: ${ODA_REAL_PATH:-/opt/oda/ODAFileConverter}
       QT_QPA_PLATFORM: xcb
       XDG_RUNTIME_DIR: /tmp/runtime-root
@@ -42,7 +42,7 @@ services:
       UPLOAD_DIR: /data/storage/uploads
       RESULT_DIR: /data/storage/results
       SECRET_KEY: ${SECRET_KEY:-troque-esta-chave-em-producao}
-      ODA_PATH: ${ODA_PATH:-/usr/local/bin/oda-file-converter}
+      ODA_PATH: /usr/local/bin/oda-file-converter
       ODA_REAL_PATH: ${ODA_REAL_PATH:-/opt/oda/ODAFileConverter}
       QT_QPA_PLATFORM: xcb
       XDG_RUNTIME_DIR: /tmp/runtime-root
@@ -62,7 +62,7 @@ services:
     environment:
       NEXT_PUBLIC_API_URL: http://backend:8000
     ports:
-      - "${FRONTEND_PORT:-3000}:3000"
+      - "${FRONTEND_PORT:-3010}:3000"
 
 volumes:
   backend-data:
