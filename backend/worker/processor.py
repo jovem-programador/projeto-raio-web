@@ -45,7 +45,7 @@ def processar_job(job_id, file_paths, result_dir, oda_path, redis_client, metada
 
         dwg_files = [p for p in file_paths if p.suffix.lower() == ".dwg"]
         pdf_files = [p for p in file_paths if p.suffix.lower() == ".pdf"]
-        docx_files = [p for p in file_paths if p.suffix.lower() == ".docx"]
+        docx_files = [p for p in file_paths if p.suffix.lower() in {".doc", ".docx"}]
         dados = []
 
         if dwg_files:
@@ -69,7 +69,7 @@ def processar_job(job_id, file_paths, result_dir, oda_path, redis_client, metada
             dados.extend(extrair_dados_completos_de_pasta_pdf(pdf_dir))
 
         if docx_files:
-            # Copia DOCXs para pasta temporária
+            # Copia DOCs/DOCXs para pasta temporária
             for p in docx_files:
                 shutil.copy(p, docx_dir / p.name)
 

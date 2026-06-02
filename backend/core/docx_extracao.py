@@ -1,5 +1,8 @@
 import os
 import re
+import shutil
+import subprocess
+import tempfile
 from pathlib import Path
 from zipfile import ZipFile
 from xml.etree import ElementTree as ET
@@ -256,12 +259,57 @@ def extrair_carimbo_de_um_docx(docx_path: str) -> dict | None:
     return None
 
 
+def _converter_doc_para_docx(doc_path: Path, output_dir: Path) -> Path:
+    converter = shutil.which("libreoffice") or shutil.which("soffice") or shutil.which("lowriter")
+    if not converter:
+        raise RuntimeError("LibreOffice não encontrado para converter arquivos .doc")
+
+    env = os.environ.copy()
+    env.setdefault("HOME", str(output_dir))
+
+    subprocess.run(
+        [
+            converter,
+            "--headless",
+            "--convert-to",
+            "docx",
+            "--outdir",
+            str(output_dir),
+            str(doc_path),
+        ],
+        check=True,
+        timeout=120,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=env,
+    )
+
+    converted_path = output_dir / f"{doc_path.stem}.docx"
+    if not converted_path.exists():
+        raise RuntimeError(f"Conversão DOC para DOCX não gerou arquivo para: {doc_path.name}")
+    return converted_path
+
+
+def extrair_carimbo_de_um_doc(doc_path: str) -> dict | None:
+    with tempfile.TemporaryDirectory() as tmp:
+        converted_path = _converter_doc_para_docx(Path(doc_path), Path(tmp))
+        carimbo = extrair_carimbo_de_um_docx(str(converted_path))
+        if carimbo:
+            carimbo["Nome_Arquivo"] = os.path.basename(doc_path)
+            carimbo["_LAYOUT_ESCOLHIDO"] = "DOC"
+        return carimbo
+
+
 def extrair_dados_completos_de_pasta_docx(pasta_docx: Path):
     resultados = []
-    arquivos = sorted([p for p in pasta_docx.glob("*.docx")])
+    arquivos = sorted([p for p in pasta_docx.iterdir() if p.is_file() and p.suffix.lower() in {".doc", ".docx"}])
 
-    for docx_path in arquivos:
-        carimbo = extrair_carimbo_de_um_docx(str(docx_path))
+    for path in arquivos:
+        if path.suffix.lower() == ".doc":
+            carimbo = extrair_carimbo_de_um_doc(str(path))
+        else:
+            carimbo = extrair_carimbo_de_um_docx(str(path))
         if carimbo:
             resultados.append(carimbo)
 

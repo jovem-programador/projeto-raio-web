@@ -236,7 +236,7 @@ async def upload(files: list[UploadFile] = File(...), user=Depends(require_valid
     job_dir = UPLOAD_DIR / job_id
     job_dir.mkdir(parents=True, exist_ok=True)
 
-    allowed_exts = {".dwg", ".pdf", ".docx"}
+    allowed_exts = {".dwg", ".pdf", ".doc", ".docx"}
     filenames = []
     ignored = []
     used_names: set[str] = set()
@@ -265,7 +265,7 @@ async def upload(files: list[UploadFile] = File(...), user=Depends(require_valid
     if not filenames:
         raise HTTPException(
             status_code=400,
-            detail="Nenhum ficheiro válido enviado. Formatos suportados: .dwg, .pdf e .docx",
+            detail="Nenhum ficheiro válido enviado. Formatos suportados: .dwg, .pdf, .doc e .docx",
         )
 
     # Guarda no Redis com a string de nomes separada por vírgula

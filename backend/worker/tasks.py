@@ -41,11 +41,11 @@ def processar_dwg(self, job_id: str):
         # Lista os ficheiros suportados dentro da pasta do job
         file_paths = [
             p for p in job_upload_dir.iterdir()
-            if p.is_file() and p.suffix.lower() in {".dwg", ".pdf", ".docx"}
+            if p.is_file() and p.suffix.lower() in {".dwg", ".pdf", ".doc", ".docx"}
         ]
 
         if not file_paths:
-            raise Exception(f"Nenhum ficheiro suportado (.dwg/.pdf/.docx) encontrado na pasta {job_upload_dir}")
+            raise Exception(f"Nenhum ficheiro suportado (.dwg/.pdf/.doc/.docx) encontrado na pasta {job_upload_dir}")
 
         job_data = r.hgetall(f"job:{job_id}")
         finished_at = datetime.now(timezone.utc).isoformat()

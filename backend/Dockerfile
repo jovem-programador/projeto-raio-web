@@ -33,6 +33,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxcb-shape0 \
     libxcb-randr0 \
     libxcb-xfixes0 \
+    libreoffice-writer \
     xvfb \
     xauth \
     && rm -rf /var/lib/apt/lists/*

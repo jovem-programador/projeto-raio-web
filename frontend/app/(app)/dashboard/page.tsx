@@ -46,7 +46,7 @@ export default function DashboardPage() {
     try {
       const suportados = Array.from(files).filter((f) => {
         const name = f.name.toLowerCase();
-        return name.endsWith(".dwg") || name.endsWith(".pdf") || name.endsWith(".docx");
+        return name.endsWith(".dwg") || name.endsWith(".pdf") || name.endsWith(".doc") || name.endsWith(".docx");
       });
       if (suportados.length > 0) await uploadFiles(suportados);
       fetchJobs();
@@ -66,6 +66,12 @@ export default function DashboardPage() {
       hour: "2-digit",
       minute: "2-digit",
     });
+  };
+
+  const jobTitle = (job: JobStatus) => {
+    const fileCount = job.total_files || job.filenames?.length || 0;
+    if (fileCount >= 2) return `Múltiplos arquivos (${fileCount})`;
+    return job.filenames?.[0] || `Extração #${job.job_id.slice(0, 6)}`;
   };
 
   // Cálculos para as métricas
@@ -114,10 +120,10 @@ export default function DashboardPage() {
                 dragging ? "border-brand-500 bg-brand-500/5" : "border-gray-300 hover:border-brand-500 dark:border-gray-700"
               }`}
             >
-              <input type="file" multiple accept=".dwg,.pdf,.docx" ref={inputRef} hidden onChange={(e) => handleFiles(e.target.files)} />
+              <input type="file" multiple accept=".dwg,.pdf,.doc,.docx" ref={inputRef} hidden onChange={(e) => handleFiles(e.target.files)} />
               <Zap className={`h-10 w-10 mb-4 ${uploading ? "animate-pulse text-orange-500" : "text-brand-500"}`} />
               <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                {uploading ? "Enviando..." : "Solte seus arquivos DWG, PDF ou DOCX nesta área"}
+                {uploading ? "Enviando..." : "Solte seus arquivos DWG, PDF, DOC ou DOCX nesta área"}
               </p>
             </div>
           </div>
@@ -178,7 +184,7 @@ export default function DashboardPage() {
                               </div>
                               <div className="flex flex-col">
                                 <span className="text-sm font-semibold text-gray-700 dark:text-white/90 truncate max-w-[200px]">
-                                  {job.filenames?.[0] || `Extração #${job.job_id.slice(0, 6)}`}
+                                  {jobTitle(job)}
                                 </span>
                                 <span className="text-[10px] text-gray-400 font-medium uppercase tracking-tight">
                                   ID: {job.job_id.slice(0, 8)}
