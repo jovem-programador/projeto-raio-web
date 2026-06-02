@@ -18,6 +18,10 @@ services:
       UPLOAD_DIR: /data/storage/uploads
       RESULT_DIR: /data/storage/results
       SECRET_KEY: ${SECRET_KEY:-troque-esta-chave-em-producao}
+      DEFAULT_ADMIN_USERNAME: ${DEFAULT_ADMIN_USERNAME:-admin}
+      DEFAULT_ADMIN_EMAIL: ${DEFAULT_ADMIN_EMAIL:-admin@projetoraio.local}
+      DEFAULT_ADMIN_PASSWORD: ${DEFAULT_ADMIN_PASSWORD:-admin123}
+      APP_TIMEZONE: ${APP_TIMEZONE:-America/Fortaleza}
       ODA_PATH: /usr/local/bin/oda-file-converter
       ODA_REAL_PATH: ${ODA_REAL_PATH:-/opt/oda/ODAFileConverter}
       QT_QPA_PLATFORM: xcb
@@ -42,6 +46,10 @@ services:
       UPLOAD_DIR: /data/storage/uploads
       RESULT_DIR: /data/storage/results
       SECRET_KEY: ${SECRET_KEY:-troque-esta-chave-em-producao}
+      DEFAULT_ADMIN_USERNAME: ${DEFAULT_ADMIN_USERNAME:-admin}
+      DEFAULT_ADMIN_EMAIL: ${DEFAULT_ADMIN_EMAIL:-admin@projetoraio.local}
+      DEFAULT_ADMIN_PASSWORD: ${DEFAULT_ADMIN_PASSWORD:-admin123}
+      APP_TIMEZONE: ${APP_TIMEZONE:-America/Fortaleza}
       ODA_PATH: /usr/local/bin/oda-file-converter
       ODA_REAL_PATH: ${ODA_REAL_PATH:-/opt/oda/ODAFileConverter}
       QT_QPA_PLATFORM: xcb

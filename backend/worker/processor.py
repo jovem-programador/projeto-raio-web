@@ -8,6 +8,7 @@ from core.core_extracao import (
 )
 from core.scriptTela import CAMPOS_ORDEM
 from core.pdf_extracao import extrair_dados_completos_de_pasta_pdf
+from core.docx_extracao import extrair_dados_completos_de_pasta_docx
 
 
 COLUNAS_MODELO_EXTRACAO = [
@@ -30,18 +31,21 @@ def _normalizar_para_modelo(df: pd.DataFrame) -> pd.DataFrame:
 
     return df[COLUNAS_MODELO_EXTRACAO].fillna("")
 
-def processar_job(job_id, file_paths, result_dir, oda_path, redis_client):
+def processar_job(job_id, file_paths, result_dir, oda_path, redis_client, metadata=None):
     with tempfile.TemporaryDirectory() as tmp:
         tmp      = Path(tmp)
         dwg_dir  = tmp / "dwg"
         dxf_dir  = tmp / "dxf"
         pdf_dir  = tmp / "pdf"
+        docx_dir = tmp / "docx"
         dwg_dir.mkdir()
         pdf_dir.mkdir()
+        docx_dir.mkdir()
         preparar_pasta_temp(dxf_dir)
 
         dwg_files = [p for p in file_paths if p.suffix.lower() == ".dwg"]
         pdf_files = [p for p in file_paths if p.suffix.lower() == ".pdf"]
+        docx_files = [p for p in file_paths if p.suffix.lower() == ".docx"]
         dados = []
 
         if dwg_files:
@@ -63,6 +67,14 @@ def processar_job(job_id, file_paths, result_dir, oda_path, redis_client):
 
             # Extrai carimbos diretamente dos PDFs
             dados.extend(extrair_dados_completos_de_pasta_pdf(pdf_dir))
+
+        if docx_files:
+            # Copia DOCXs para pasta temporária
+            for p in docx_files:
+                shutil.copy(p, docx_dir / p.name)
+
+            # Extrai dados dos cabeçalhos/tabelas do documento Word
+            dados.extend(extrair_dados_completos_de_pasta_docx(docx_dir))
         
         if not dados:
             raise ValueError("Nenhum dado extraído dos arquivos enviados")
@@ -73,7 +85,7 @@ def processar_job(job_id, file_paths, result_dir, oda_path, redis_client):
         # Gera Excel
         df = pd.DataFrame(dados)
         df = _normalizar_para_modelo(df)
-        excel_bytes = dataframe_to_excel_bytes(df)
+        excel_bytes = dataframe_to_excel_bytes(df, metadata=metadata)
 
         # Define o caminho final e guarda o ficheiro
         output_path = result_dir / f"{job_id}.xlsx"

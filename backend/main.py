@@ -7,16 +7,18 @@ from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
 import redis
 from database import get_db, User, License, LicenseRequest
-from auth import hash_password, verify_password, create_token, get_current_user, require_admin
-from models import TokenResponse, UserCreate, UserOut, JobStatus, ResetPasswordRequest, LicenseCreate, LicenseUpdate, LicenseOut, LicenseCheckOut, LicenseRequestOut
+from auth import hash_password, verify_password, create_token, get_current_user, get_current_user_flexible, require_admin
+from models import TokenResponse, UserCreate, AdminUserCreate, UserOut, JobStatus, AdminResetPasswordRequest, LicenseCreate, LicenseUpdate, LicenseOut, LicenseCheckOut, LicenseRequestOut
 from worker.tasks import processar_dwg
-import urllib.parse
 from fastapi.security import OAuth2PasswordRequestForm
 
 # Configurações de Ambiente
 UPLOAD_DIR  = Path(os.getenv("UPLOAD_DIR",  "storage/uploads"))
 RESULT_DIR  = Path(os.getenv("RESULT_DIR",  "storage/results"))
 REDIS_URL   = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+DEFAULT_ADMIN_USERNAME = os.getenv("DEFAULT_ADMIN_USERNAME", "admin").strip()
+DEFAULT_ADMIN_EMAIL = os.getenv("DEFAULT_ADMIN_EMAIL", "admin@projetoraio.local").strip()
+DEFAULT_ADMIN_PASSWORD = os.getenv("DEFAULT_ADMIN_PASSWORD", "admin123").strip()
 
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 RESULT_DIR.mkdir(parents=True, exist_ok=True)
@@ -34,6 +36,48 @@ app.add_middleware(
 
 # Conexão Redis (decode_responses=True para facilitar manipulação de strings)
 redis_client = redis.from_url(REDIS_URL, decode_responses=True)
+
+def _sanitize_filename(filename: str | None, fallback: str) -> str:
+    safe_name = Path(filename or fallback).name
+    safe_name = re.sub(r'[<>:"/\\|?*\x00-\x1f]+', "_", safe_name).strip().strip(".")
+    return safe_name or fallback
+
+def _normalize_user_role(role: str) -> str:
+    normalized = (role or "operador").strip().lower()
+    if normalized not in {"admin", "operador"}:
+        raise HTTPException(status_code=400, detail="Perfil inválido. Use admin ou operador.")
+    return normalized
+
+def _ensure_default_admin() -> None:
+    if not DEFAULT_ADMIN_USERNAME or not DEFAULT_ADMIN_PASSWORD:
+        return
+
+    db = next(get_db())
+    try:
+        existing_admin = db.query(User).filter(User.role == "admin").first()
+        if existing_admin:
+            return
+
+        existing_user = db.query(User).filter(
+            (User.username == DEFAULT_ADMIN_USERNAME) | (User.email == DEFAULT_ADMIN_EMAIL)
+        ).first()
+        if existing_user:
+            existing_user.role = "admin"
+            existing_user.active = True
+            existing_user.hashed_password = hash_password(DEFAULT_ADMIN_PASSWORD)
+        else:
+            db.add(User(
+                username=DEFAULT_ADMIN_USERNAME,
+                email=DEFAULT_ADMIN_EMAIL,
+                hashed_password=hash_password(DEFAULT_ADMIN_PASSWORD),
+                role="admin",
+                active=True,
+            ))
+        db.commit()
+    finally:
+        db.close()
+
+_ensure_default_admin()
 
 # ── AUTH ──────────────────────────────────────────────────────
 @app.post("/auth/register", response_model=UserOut)
@@ -192,23 +236,36 @@ async def upload(files: list[UploadFile] = File(...), user=Depends(require_valid
     job_dir = UPLOAD_DIR / job_id
     job_dir.mkdir(parents=True, exist_ok=True)
 
-    allowed_exts = {".dwg", ".pdf"}
+    allowed_exts = {".dwg", ".pdf", ".docx"}
     filenames = []
     ignored = []
-    for file in files:
-        ext = Path(file.filename).suffix.lower()
+    used_names: set[str] = set()
+    for idx, file in enumerate(files, start=1):
+        original_name = file.filename or f"arquivo_{idx}"
+        ext = Path(original_name).suffix.lower()
         if ext not in allowed_exts:
-            ignored.append(file.filename)
+            ignored.append(original_name)
             continue
-        file_path = job_dir / file.filename
+
+        safe_name = _sanitize_filename(original_name, f"arquivo_{idx}{ext}")
+        if safe_name in used_names:
+            stem = Path(safe_name).stem
+            suffix = Path(safe_name).suffix
+            dup = 2
+            while f"{stem}_dup{dup}{suffix}" in used_names:
+                dup += 1
+            safe_name = f"{stem}_dup{dup}{suffix}"
+
+        used_names.add(safe_name)
+        file_path = job_dir / safe_name
         with file_path.open("wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
-        filenames.append(file.filename)
+        filenames.append(safe_name)
 
     if not filenames:
         raise HTTPException(
             status_code=400,
-            detail="Nenhum ficheiro válido enviado. Formatos suportados: .dwg e .pdf",
+            detail="Nenhum ficheiro válido enviado. Formatos suportados: .dwg, .pdf e .docx",
         )
 
     # Guarda no Redis com a string de nomes separada por vírgula
@@ -223,6 +280,24 @@ async def upload(files: list[UploadFile] = File(...), user=Depends(require_valid
 
     processar_dwg.delay(job_id)
     return {"job_id": job_id, "total_files": len(filenames), "ignored": ignored}
+
+@app.get("/jobs/{job_id}/status", response_model=JobStatus)
+def get_job_status(job_id: str, user=Depends(get_current_user)):
+    data = redis_client.hgetall(f"job:{job_id}")
+    if not data:
+        raise HTTPException(status_code=404, detail="Job não encontrado")
+
+    if user.role != "admin" and data.get("user") != user.username:
+        raise HTTPException(status_code=403, detail="Acesso negado")
+
+    return {
+        "job_id": job_id,
+        "status": data.get("status", "queued"),
+        "total_files": int(data.get("total_files", 0)),
+        "processed": int(data.get("processed", 0)),
+        "error_msg": data.get("error_msg"),
+        "download_ready": data.get("status") == "done",
+    }
 
 @app.get("/jobs")
 def list_jobs(user=Depends(get_current_user)):
@@ -289,7 +364,7 @@ def clear_jobs(current_user: User = Depends(get_current_user)):
         raise HTTPException(status_code=500, detail=f"Erro ao limpar: {str(e)}")
 
 @app.get("/jobs/{job_id}/download")
-def download_result(job_id: str, user=Depends(get_current_user)):
+def download_result(job_id: str, user=Depends(get_current_user_flexible)):
     data = redis_client.hgetall(f"job:{job_id}")
     if not data:
         raise HTTPException(status_code=404, detail="Job não encontrado")
@@ -392,6 +467,28 @@ def list_users(db: Session = Depends(get_db), current_user: User = Depends(requi
     """
     return db.query(User).all()
 
+@app.post("/admin/users", response_model=UserOut)
+def create_user_admin(user_data: AdminUserCreate, db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
+    existing_username = db.query(User).filter(User.username == user_data.username).first()
+    if existing_username:
+        raise HTTPException(status_code=400, detail="Usuário já existe")
+
+    existing_email = db.query(User).filter(User.email == user_data.email).first()
+    if existing_email:
+        raise HTTPException(status_code=400, detail="E-mail já cadastrado")
+
+    new_user = User(
+        username=user_data.username,
+        email=user_data.email,
+        hashed_password=hash_password(user_data.password),
+        role=_normalize_user_role(user_data.role),
+        active=user_data.active,
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    return new_user
+
 @app.patch("/admin/users/{user_id}/toggle")
 def toggle_user_status(user_id: str, db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
     """
@@ -437,6 +534,19 @@ def delete_user(user_id: str, db: Session = Depends(get_db), current_user: User 
     db.delete(user)
     db.commit()
     return {"detail": "Usuário removido com sucesso"}
+
+@app.post("/admin/users/{user_id}/reset-password")
+def reset_user_password_admin(user_id: str, data: AdminResetPasswordRequest, db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado")
+
+    if len(data.password) < 6:
+        raise HTTPException(status_code=400, detail="A senha deve ter no mínimo 6 caracteres")
+
+    user.hashed_password = hash_password(data.password)
+    db.commit()
+    return {"detail": "Senha atualizada com sucesso"}
 
 # ── CONTROLE DE LICENÇAS (ADMIN) ───────────────────────────────
 
@@ -610,15 +720,8 @@ def delete_license(license_id: str, db: Session = Depends(get_db), current_user:
     return {"detail": "Licença removida com sucesso"}
 
 @app.post("/auth/reset-password")
-def reset_password(data: ResetPasswordRequest, db: Session = Depends(get_db)):
-    user = db.query(User).filter(
-        (User.username == data.identifier) | (User.email == data.identifier)
-    ).first()
-
-    if not user:
-        raise HTTPException(status_code=404, detail="Usuário não encontrado")
-
-    user.hashed_password = hash_password(data.password)
-    db.commit()
-
-    return {"detail": "Senha atualizada com sucesso"}
+def reset_password_disabled():
+    raise HTTPException(
+        status_code=403,
+        detail="Redefinição pública de senha desativada. Procure um administrador.",
+    )

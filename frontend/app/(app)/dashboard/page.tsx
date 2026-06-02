@@ -46,7 +46,7 @@ export default function DashboardPage() {
     try {
       const suportados = Array.from(files).filter((f) => {
         const name = f.name.toLowerCase();
-        return name.endsWith(".dwg") || name.endsWith(".pdf");
+        return name.endsWith(".dwg") || name.endsWith(".pdf") || name.endsWith(".docx");
       });
       if (suportados.length > 0) await uploadFiles(suportados);
       fetchJobs();
@@ -114,10 +114,10 @@ export default function DashboardPage() {
                 dragging ? "border-brand-500 bg-brand-500/5" : "border-gray-300 hover:border-brand-500 dark:border-gray-700"
               }`}
             >
-              <input type="file" multiple accept=".dwg,.pdf" ref={inputRef} hidden onChange={(e) => handleFiles(e.target.files)} />
+              <input type="file" multiple accept=".dwg,.pdf,.docx" ref={inputRef} hidden onChange={(e) => handleFiles(e.target.files)} />
               <Zap className={`h-10 w-10 mb-4 ${uploading ? "animate-pulse text-orange-500" : "text-brand-500"}`} />
               <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                {uploading ? "Enviando..." : "Arraste seus DWGs/PDFs aqui"}
+                {uploading ? "Enviando..." : "Solte seus arquivos DWG, PDF ou DOCX nesta área"}
               </p>
             </div>
           </div>
@@ -139,7 +139,12 @@ export default function DashboardPage() {
             </div>
             
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
+              <table className="w-full table-fixed text-left border-collapse">
+                <colgroup>
+                  <col className="w-[52%]" />
+                  <col className="w-[20%]" />
+                  <col className="w-[28%]" />
+                </colgroup>
                 <thead>
                   <tr className="border-b border-gray-100 dark:border-gray-800 text-[11px] font-bold text-gray-400 uppercase tracking-widest">
                     <th className="px-6 py-4">Arquivo Base</th>
@@ -147,79 +152,89 @@ export default function DashboardPage() {
                     <th className="px-6 py-4 text-right">Ação</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-50 dark:divide-gray-800/50">
-                  {jobs.length === 0 ? (
-                    <tr>
-                      <td colSpan={3} className="px-6 py-12 text-center text-gray-400 italic text-sm">
-                        Nenhum registro de extração encontrado.
-                      </td>
-                    </tr>
-                  ) : (
-                    jobs.map((job) => (
-                      <tr key={job.job_id} className="group hover:bg-gray-50/50 dark:hover:bg-white/[0.01] transition-all">
-                        <td className="px-6 py-5">
-                          <div className="flex items-center gap-3">
-                            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800 group-hover:bg-white dark:group-hover:bg-gray-700 transition-colors">
-                              <FileText className="h-5 w-5 text-gray-400 group-hover:text-red-700" />
-                            </div>
-                            <div className="flex flex-col">
-                              <span className="text-sm font-semibold text-gray-700 dark:text-white/90 truncate max-w-[200px]">
-                                {job.filenames?.[0] || `Extração #${job.job_id.slice(0, 6)}`}
-                              </span>
-                              <span className="text-[10px] text-gray-400 font-medium uppercase tracking-tight">
-                                ID: {job.job_id.slice(0, 8)}
-                              </span>
-                              <span className="text-[10px] text-gray-400 font-medium tracking-tight">
-                                Extração: {formatDateTime(job.finished_at || job.started_at || job.created_at)}
-                              </span>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-5 text-center">
-                          <StatusBadge status={job.status} />
-                        </td>
-                        <td className="px-6 py-5 text-right">
-                          {job.download_ready ? (
-                            <button 
-                              onClick={async () => {
-                                try {
-                                  const response = await fetch(downloadUrl(job.job_id), {
-                                    headers: {
-                                      // Se o seu downloadUrl já não incluir o token, adicione aqui
-                                      'Authorization': `Bearer ${document.cookie.match(/raio_token=([^;]+)/)?.[1]}`
-                                    }
-                                  });
-                                  
-                                  const blob = await response.blob();
-                                  const url = window.URL.createObjectURL(blob);
-                                  const a = document.createElement('a');
-                                  a.href = url;
-                                  //- ${job.filenames?.[0] || job.job_id.slice(0,6)}
-                                  a.download = `Extração Raio.xlsx`;
-                                  document.body.appendChild(a);
-                                  a.click();
-                                  window.URL.revokeObjectURL(url);
-                                  document.body.removeChild(a);
-                                } catch (err) {
-                                  alert("Erro ao baixar o arquivo.");
-                                }
-                              }}
-                              className="inline-flex items-center gap-2 rounded-lg bg-green-50 px-3 py-2 text-xs font-bold text-green-700 hover:bg-green-700 hover:text-white transition-all shadow-sm cursor-pointer"
-                            >
-                              <Layers3 className="h-4 w-4" />
-                              DOWNLOAD EXCEL
-                            </button>
-                          ) : (
-                            <span className="text-[11px] font-bold text-gray-300 uppercase italic">
-                              {job.status === 'error' ? 'Falha' : 'Processando...'}
-                            </span>
-                          )}
+              </table>
+
+              <div className={jobs.length > 3 ? "max-h-[285px] overflow-y-auto" : ""}>
+                <table className="w-full table-fixed text-left border-collapse">
+                  <colgroup>
+                    <col className="w-[52%]" />
+                    <col className="w-[20%]" />
+                    <col className="w-[28%]" />
+                  </colgroup>
+                  <tbody className="divide-y divide-gray-50 dark:divide-gray-800/50">
+                    {jobs.length === 0 ? (
+                      <tr>
+                        <td colSpan={3} className="px-6 py-12 text-center text-gray-400 italic text-sm">
+                          Nenhum registro de extração encontrado.
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+                    ) : (
+                      jobs.map((job) => (
+                        <tr key={job.job_id} className="group hover:bg-gray-50/50 dark:hover:bg-white/[0.01] transition-all">
+                          <td className="px-6 py-5">
+                            <div className="flex items-center gap-3">
+                              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800 group-hover:bg-white dark:group-hover:bg-gray-700 transition-colors">
+                                <FileText className="h-5 w-5 text-gray-400 group-hover:text-red-700" />
+                              </div>
+                              <div className="flex flex-col">
+                                <span className="text-sm font-semibold text-gray-700 dark:text-white/90 truncate max-w-[200px]">
+                                  {job.filenames?.[0] || `Extração #${job.job_id.slice(0, 6)}`}
+                                </span>
+                                <span className="text-[10px] text-gray-400 font-medium uppercase tracking-tight">
+                                  ID: {job.job_id.slice(0, 8)}
+                                </span>
+                                <span className="text-[10px] text-gray-400 font-medium tracking-tight">
+                                  Extração: {formatDateTime(job.finished_at || job.started_at || job.created_at)}
+                                </span>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-5 text-center">
+                            <StatusBadge status={job.status} />
+                          </td>
+                          <td className="px-6 py-5 text-right">
+                            {job.download_ready ? (
+                              <button
+                                onClick={async () => {
+                                  try {
+                                    const response = await fetch(downloadUrl(job.job_id), {
+                                      headers: {
+                                        // Se o seu downloadUrl já não incluir o token, adicione aqui
+                                        'Authorization': `Bearer ${document.cookie.match(/raio_token=([^;]+)/)?.[1]}`
+                                      }
+                                    });
+
+                                    const blob = await response.blob();
+                                    const url = window.URL.createObjectURL(blob);
+                                    const a = document.createElement('a');
+                                    a.href = url;
+                                    //- ${job.filenames?.[0] || job.job_id.slice(0,6)}
+                                    a.download = `Extração Raio.xlsx`;
+                                    document.body.appendChild(a);
+                                    a.click();
+                                    window.URL.revokeObjectURL(url);
+                                    document.body.removeChild(a);
+                                  } catch (err) {
+                                    alert("Erro ao baixar o arquivo.");
+                                  }
+                                }}
+                                className="inline-flex items-center gap-2 rounded-lg bg-green-50 px-3 py-2 text-xs font-bold text-green-700 hover:bg-green-700 hover:text-white transition-all shadow-sm cursor-pointer"
+                              >
+                                <Layers3 className="h-4 w-4" />
+                                DOWNLOAD EXCEL
+                              </button>
+                            ) : (
+                              <span className="text-[11px] font-bold text-gray-300 uppercase italic">
+                                {job.status === 'error' ? 'Falha' : 'Processando...'}
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </div>

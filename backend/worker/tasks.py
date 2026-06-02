@@ -41,11 +41,24 @@ def processar_dwg(self, job_id: str):
         # Lista os ficheiros suportados dentro da pasta do job
         file_paths = [
             p for p in job_upload_dir.iterdir()
-            if p.is_file() and p.suffix.lower() in {".dwg", ".pdf"}
+            if p.is_file() and p.suffix.lower() in {".dwg", ".pdf", ".docx"}
         ]
 
         if not file_paths:
-            raise Exception(f"Nenhum ficheiro suportado (.dwg/.pdf) encontrado na pasta {job_upload_dir}")
+            raise Exception(f"Nenhum ficheiro suportado (.dwg/.pdf/.docx) encontrado na pasta {job_upload_dir}")
+
+        job_data = r.hgetall(f"job:{job_id}")
+        finished_at = datetime.now(timezone.utc).isoformat()
+        raw_filenames = job_data.get("filenames", "")
+        metadata = {
+            "job_id": job_id,
+            "user": job_data.get("user", ""),
+            "created_at": job_data.get("created_at", ""),
+            "finished_at": finished_at,
+            "total_files": job_data.get("total_files", len(file_paths)),
+            "filenames": raw_filenames.split(",") if raw_filenames else [p.name for p in file_paths],
+            "version": "Projeto Raio 1.0.0",
+        }
 
         # Chama o processador
         result_path = processar_job(
@@ -54,6 +67,7 @@ def processar_dwg(self, job_id: str):
             result_dir=RESULT_DIR,
             oda_path=ODA_PATH,
             redis_client=r,
+            metadata=metadata,
         )
 
         # Se foi removido durante o processamento, não regrava status final.
@@ -63,7 +77,7 @@ def processar_dwg(self, job_id: str):
         r.hset(f"job:{job_id}", mapping={
             "status": "done",
             "result_path": str(result_path),
-            "finished_at": datetime.now(timezone.utc).isoformat(),
+            "finished_at": finished_at,
         })
         
         return f"Job {job_id} concluído com sucesso."

@@ -18,6 +18,9 @@ class UserCreate(BaseModel):
     password: str
     role: str = "operador"
 
+class AdminUserCreate(UserCreate):
+    active: bool = True
+
 class UserOut(BaseModel):
     id: str
     username: str
@@ -37,6 +40,9 @@ class JobStatus(BaseModel):
 
 class ResetPasswordRequest(BaseModel):
     identifier: str
+    password: str
+
+class AdminResetPasswordRequest(BaseModel):
     password: str
 
 class LicenseCreate(BaseModel):
