@@ -34,6 +34,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxcb-randr0 \
     libxcb-xfixes0 \
     libreoffice-writer \
+    poppler-utils \
+    tesseract-ocr \
+    tesseract-ocr-eng \
+    tesseract-ocr-por \
     xvfb \
     xauth \
     && rm -rf /var/lib/apt/lists/*
